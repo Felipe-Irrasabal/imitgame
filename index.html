@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O Jogo da Imitação - A Máquina vs Humanidade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Special+Elite&display=swap');
+
+        :root {
+            --copper-light: #d4a373;
+            --copper-dark: #8c5a35;
+            --gold: #f4d03f;
+            --bg-dark: #0f0c0e;
+            --danger: #e74c3c;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #e0e0e0;
+            font-family: 'Cinzel', serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Canvas Fundo */
+        #binary-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .font-serif { font-family: 'Cinzel', serif; }
+        .title-font { font-family: 'Cinzel', serif; }
+        .cinzel-font { font-family: 'Cinzel', serif; }
+
+        .steampunk-box {
+            background: linear-gradient(135deg, #1a1518 0%, #0a0809 100%);
+            border: 2px solid var(--copper-dark);
+            border-radius: 8px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 0 15px rgba(140, 90, 53, 0.3);
+            position: relative;
+        }
+
+        .inner-border {
+            border: 1px solid rgba(212, 163, 115, 0.3);
+            border-radius: 4px;
+        }
+
+        .steam-btn {
+            background: linear-gradient(to bottom, #2a2024, #151012);
+            border: 1px solid var(--copper-dark);
+            color: var(--copper-light);
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+
+        .steam-btn:hover:not(:disabled) {
+            background: linear-gradient(to bottom, #3a2c32, #20181b);
+            border-color: var(--gold);
+            color: var(--gold);
+            box-shadow: 0 0 15px rgba(244, 208, 63, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        .steam-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+        }
+
+        .steam-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(100%);
+        }
+
+        .turn-active {
+            border-color: var(--gold) !important;
+            box-shadow: 0 0 20px rgba(244, 208, 63, 0.35) !important;
+        }
+        
+        .turn-inactive {
+            opacity: 0.55;
+            transform: scale(0.96);
+        }
+
+        /* Efeitos no Texto */
+        .anomalia-text { text-shadow: 0 0 5px rgba(255,0,0,0.8); animation: glitch 0.2s infinite; }
+        .safe-text { text-shadow: 0 0 5px rgba(100,200,255,0.8); }
+
+        @keyframes glitch {
+            0% { transform: translate(0) }
+            20% { transform: translate(-2px, 1px) }
+            40% { transform: translate(-1px, -1px) }
+            60% { transform: translate(2px, 1px) }
+            80% { transform: translate(1px, -1px) }
+            100% { transform: translate(0) }
+        }
+
+        .overlay {
+            background: rgba(10, 8, 9, 0.95);
+            backdrop-filter: blur(5px);
+        }
+
+        /* Avatar e Cartas com Imagens */
+        .avatar-container {
+            position: relative;
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            border: 2px solid var(--copper-light);
+            background: radial-gradient(circle, #2a2024 0%, #0a0809 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.9), 0 0 10px rgba(140, 90, 53, 0.5);
+            margin: 0 auto;
+        }
+
+        /* Recorta automaticamente o rosto do personagem a partir da imagem da carta completa */
+        .avatar-portrait-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: 50% 36%;
+            transform: scale(1.45);
+            z-index: 3;
+            transition: transform 0.3s ease;
+        }
+
+        /* Estilo das Cartas Completas na Tela de Seleção */
+        .char-card {
+            transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            border: 2px solid var(--copper-dark);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #120e10;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8), 0 0 15px rgba(140, 90, 53, 0.2);
+        }
+
+        .char-card:hover {
+            transform: translateY(-8px) scale(1.03);
+            border-color: var(--gold);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.9), 0 0 25px rgba(244, 208, 63, 0.5);
+        }
+
+        .card-full-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            aspect-ratio: 736 / 1040;
+            object-fit: cover;
+        }
+
+        .gear-bg {
+            position: absolute;
+            font-size: 90px;
+            color: rgba(212, 163, 115, 0.12);
+            animation: spin 20s linear infinite;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .avatar-content {
+            z-index: 2;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .avatar-initials {
+            font-family: 'Cinzel', serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .typewriter::after {
+            content: '█';
+            animation: blink 1s step-end infinite;
+            color: var(--copper-light);
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* PORTAS LÓGICAS */
+        .logic-gate-btn {
+            background: rgba(15, 12, 14, 0.9);
+            border: 2px solid var(--copper-dark);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .logic-gate-btn:hover {
+            border-color: var(--gold);
+            box-shadow: 0 0 15px rgba(244, 208, 63, 0.4);
+            transform: translateY(-2px);
+        }
+        .gate-svg { width: 60px; height: 60px; fill: none; stroke-width: 2; margin: 0 auto; }
+        .gate-and { stroke: #4ade80; }
+        .gate-or { stroke: #60a5fa; }
+        .gate-not { stroke: #f87171; }
+        
+        .vote-btn.selected-humano { border-color: #60a5fa !important; box-shadow: 0 0 15px rgba(96,165,250,0.5); color: #60a5fa; }
+        .vote-btn.selected-ia { border-color: #f87171 !important; box-shadow: 0 0 15px rgba(248,113,113,0.5); color: #f87171; }
+    </style>
+</head>
+<body class="p-2 md:p-4 w-full h-full relative">
+
+    <canvas id="binary-canvas"></canvas>
+
+    <!-- CONTROLE DE ÁUDIO 8-BITS -->
+    <div class="fixed top-3 right-3 z-50 flex items-center gap-2">
+        <button id="btn-audio-toggle" onclick="toggle8BitAudio()" class="steam-btn py-2 px-3 rounded text-xs md:text-sm font-bold flex items-center gap-2 shadow-lg border border-[var(--copper-light)]">
+            <span id="audio-icon">🔇</span>
+            <span id="audio-label" class="hidden sm:inline">Música 8-Bits: OFF</span>
+        </button>
+    </div>
+
+    <!-- INTRODUÇÃO -->
+    <div id="intro-screen" class="fixed inset-0 bg-[#0f0c0e] flex flex-col justify-center items-center z-50 p-6 md:p-12">
+        <p id="intro-text" class="text-xl md:text-3xl font-serif text-[#d4a373] text-center max-w-4xl leading-relaxed h-[100px] md:h-[120px]"></p>
+        <button onclick="skipIntro()" class="absolute bottom-6 right-6 md:bottom-10 md:right-10 steam-btn py-2 px-4 md:py-3 md:px-6 text-sm md:text-base rounded font-bold tracking-widest z-50">SKIP >></button>
+    </div>
+
+    <!-- TELA INICIAL -->
+    <div id="start-screen" class="w-full max-w-2xl mx-auto hidden flex-col justify-center items-center min-h-[90vh] z-10 relative">
+        <div class="steampunk-box p-6 md:p-10 text-center w-full">
+            <div class="inner-border p-4 md:p-8">
+                <h1 class="text-3xl md:text-6xl font-bold mb-3 text-[#d4a373] tracking-widest uppercase drop-shadow-[0_0_15px_rgba(212,163,115,0.6)] cinzel-font">O Jogo da Imitação</h1>
+                <h2 class="text-lg md:text-2xl mb-8 font-serif italic text-gray-300">A Máquina vs A Humanidade</h2>
+                <div class="mb-8 text-sm md:text-base leading-relaxed text-gray-400 text-left mx-auto max-w-md bg-black/40 p-4 rounded border border-[#8c5a35]/30">
+                    <p class="mb-2">Engrenagens giram, válvulas apitam. O embate final pelo intelecto começou.</p>
+                    <p class="mt-2 text-[var(--gold)] text-center font-bold">Vitória: 15 pontos. Derrota (IA): 15 pontos.</p>
+                </div>
+                <h3 class="text-[#d4a373] mb-4 uppercase tracking-widest text-sm font-bold">Quantos irão jogar?</h3>
+                <div class="flex flex-wrap gap-4 justify-center">
+                    <button onclick="startGameSetup(1)" class="steam-btn py-3 px-6 text-lg rounded w-full md:w-auto">1 Jogador</button>
+                    <button onclick="startGameSetup(2)" class="steam-btn py-3 px-6 text-lg rounded w-full md:w-auto">2 Jogadores</button>
+                    <button onclick="startGameSetup(3)" class="steam-btn py-3 px-6 text-lg rounded w-full md:w-auto">3 Jogadores</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SELEÇÃO DE PERSONAGENS -->
+    <div id="char-select-screen" class="w-full max-w-5xl mx-auto hidden flex-col justify-center items-center min-h-[90vh] z-10 relative py-6">
+        <h2 id="char-select-title" class="title-font text-2xl md:text-4xl font-bold mb-6 text-[#d4a373] text-center uppercase tracking-widest drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+            Jogador 1, Escolha seu Personagem
+        </h2>
+        <div id="char-options" class="flex flex-wrap justify-center gap-6 md:gap-8 mb-6 w-full px-2">
+            <!-- Preenchido dinamicamente via JS com as Cartas -->
+        </div>
+    </div>
+
+    <!-- TELA DO JOGO -->
+    <div id="game-screen" class="w-full max-w-4xl mx-auto flex-col gap-4 z-10 relative hidden pt-2 pb-10">
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6 items-stretch">
+            <!-- Painel Jogador 1 -->
+            <div id="panel-p1" class="steampunk-box p-2 md:p-3 text-center transition-all duration-300">
+                <div class="inner-border p-2 h-full flex flex-col justify-between items-center">
+                    <div class="avatar-container mb-2 cursor-pointer" onclick="inspectCard(0)" title="Clique para ampliar a carta">
+                        <img id="img-p1" src="" alt="Avatar P1" class="avatar-portrait-img" onerror="this.style.display='none'; document.getElementById('fallback-p1').style.display='flex';">
+                        <div id="fallback-p1" class="avatar-content hidden">
+                            <div class="gear-bg">⚙</div>
+                            <div id="initials-p1" class="avatar-initials">A.L.</div>
+                        </div>
+                    </div>
+                    <h3 id="name-p1" class="title-font font-bold text-xs md:text-sm text-[#d4a373] leading-tight">Player 1</h3>
+                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p1">0</span><span class="text-[10px] text-gray-500">/15</span></div>
+                    <div class="text-[9px] md:text-[10px] text-gray-400">Seq: <span id="streak-p1" class="text-[var(--gold)]">0</span></div>
+                </div>
+            </div>
+
+            <!-- Painel Jogador 2 -->
+            <div id="panel-p2" class="steampunk-box p-2 md:p-3 text-center transition-all duration-300">
+                <div class="inner-border p-2 h-full flex flex-col justify-between items-center">
+                    <div class="avatar-container mb-2 cursor-pointer" onclick="inspectCard(1)" title="Clique para ampliar a carta">
+                        <img id="img-p2" src="" alt="Avatar P2" class="avatar-portrait-img" onerror="this.style.display='none'; document.getElementById('fallback-p2').style.display='flex';">
+                        <div id="fallback-p2" class="avatar-content hidden">
+                            <div class="gear-bg">⚙</div>
+                            <div id="initials-p2" class="avatar-initials">A.T.</div>
+                        </div>
+                    </div>
+                    <h3 id="name-p2" class="title-font font-bold text-xs md:text-sm text-[#d4a373] leading-tight">Player 2</h3>
+                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p2">0</span><span class="text-[10px] text-gray-500">/15</span></div>
+                    <div class="text-[9px] md:text-[10px] text-gray-400">Seq: <span id="streak-p2" class="text-[var(--gold)]">0</span></div>
+                </div>
+            </div>
+
+            <!-- Painel Jogador 3 -->
+            <div id="panel-p3" class="steampunk-box p-2 md:p-3 text-center transition-all duration-300">
+                <div class="inner-border p-2 h-full flex flex-col justify-between items-center">
+                    <div class="avatar-container mb-2 cursor-pointer" onclick="inspectCard(2)" title="Clique para ampliar a carta">
+                        <img id="img-p3" src="" alt="Avatar P3" class="avatar-portrait-img" onerror="this.style.display='none'; document.getElementById('fallback-p3').style.display='flex';">
+                        <div id="fallback-p3" class="avatar-content hidden">
+                            <div class="gear-bg">⚙</div>
+                            <div id="initials-p3" class="avatar-initials">G.B.</div>
+                        </div>
+                    </div>
+                    <h3 id="name-p3" class="title-font font-bold text-xs md:text-sm text-[#d4a373] leading-tight">Player 3</h3>
+                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p3">0</span><span class="text-[10px] text-gray-500">/15</span></div>
+                    <div class="text-[9px] md:text-[10px] text-gray-400">Seq: <span id="streak-p3" class="text-[var(--gold)]">0</span></div>
+                </div>
+            </div>
+
+            <!-- Painel A Máquina -->
+            <div class="steampunk-box p-2 md:p-3 text-center border-[var(--danger)] bg-black/80 shadow-[0_0_20px_rgba(231,76,60,0.2)]">
+                <div class="inner-border p-2 h-full flex flex-col justify-between items-center border-[var(--danger)]/50">
+                    <div class="avatar-container mb-2 border-[var(--danger)] shadow-[0_0_12px_rgba(231,76,60,0.5)]">
+                        <div class="gear-bg text-red-500/20">⚙</div>
+                        <div class="avatar-content">
+                            <div class="avatar-initials text-red-500">I.A.</div>
+                        </div>
+                    </div>
+                    <h3 class="title-font font-bold text-xs md:text-sm text-red-400 uppercase tracking-widest">A Máquina</h3>
+                    <div class="text-2xl md:text-3xl font-bold my-1 text-red-500"><span id="score-ai">0</span><span class="text-xs text-gray-600">/15</span></div>
+                    <div class="text-[9px] md:text-[10px] text-red-300">Seq: <span id="streak-ai" class="text-red-200 font-bold">0</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col items-center justify-center mb-4 md:mb-6 w-full">
+            <div id="abilities-container" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 w-full max-w-2xl">
+                <div id="ability-wrapper-p1" class="steampunk-box p-2 text-center">
+                    <button id="btn-ability-p1" onclick="useAbility(0)" disabled class="steam-btn w-full py-2 px-2 text-xs md:text-sm rounded flex flex-col items-center justify-center min-h-[60px]">
+                        <span id="name-ability-p1" class="font-bold">Habilidade P1</span>
+                        <span id="status-ability-p1" class="text-[9px] md:text-[10px] lowercase tracking-widest mt-1 opacity-80">Requer Seq: 3</span>
+                    </button>
+                </div>
+                
+                <div id="ability-wrapper-p2" class="steampunk-box p-2 text-center">
+                    <button id="btn-ability-p2" onclick="useAbility(1)" disabled class="steam-btn w-full py-2 px-2 text-xs md:text-sm rounded flex flex-col items-center justify-center min-h-[60px]">
+                        <span id="name-ability-p2" class="font-bold">Habilidade P2</span>
+                        <span id="status-ability-p2" class="text-[9px] md:text-[10px] lowercase tracking-widest mt-1 opacity-80">Requer Seq: 2</span>
+                    </button>
+                </div>
+
+                <div id="ability-wrapper-p3" class="steampunk-box p-2 text-center">
+                    <button id="btn-ability-p3" onclick="useAbility(2)" disabled class="steam-btn w-full py-2 px-2 text-xs md:text-sm rounded flex flex-col items-center justify-center min-h-[60px]">
+                        <span id="name-ability-p3" class="font-bold">Habilidade P3</span>
+                        <span id="status-ability-p3" class="text-[9px] md:text-[10px] lowercase tracking-widest mt-1 opacity-80">Requer Seq: 3</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="steampunk-box w-full min-h-[140px] md:min-h-[180px] p-4 md:p-6 mb-6 flex items-center justify-center relative bg-[#050404]">
+                <div class="inner-border absolute inset-1 pointer-events-none border-[#8c5a35]/40"></div>
+                <p id="sentence-display" class="text-lg md:text-2xl text-center leading-relaxed font-serif p-2 md:p-4 w-full transition-all duration-300"></p>
+            </div>
+
+            <div id="normal-voting-interface" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl mx-auto w-full">
+                <button onclick="makeGuess('Humano')" class="steam-btn py-4 text-lg md:text-xl rounded font-bold tracking-wider hover:!border-blue-400 hover:!text-blue-400 hover:!shadow-[0_0_15px_rgba(96,165,250,0.5)]">É Humano</button>
+                <button onclick="makeGuess('IA')" class="steam-btn py-4 text-lg md:text-xl rounded font-bold tracking-wider hover:!border-red-400 hover:!text-red-400 hover:!shadow-[0_0_15px_rgba(248,113,113,0.5)]">É Máquina (IA)</button>
+            </div>
+
+            <div id="coop-voting-interface" class="hidden flex-col gap-4 max-w-2xl mx-auto w-full">
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div>
+                        <h4 id="coop-name-p1" class="text-[var(--gold)] mb-2 font-bold uppercase title-font">Player 1</h4>
+                        <div class="flex gap-2 justify-center">
+                            <button id="coop-p1-humano" onclick="setCoopVote(0, 'Humano')" class="vote-btn steam-btn py-2 px-3 text-sm md:text-base rounded font-bold">Humano</button>
+                            <button id="coop-p1-ia" onclick="setCoopVote(0, 'IA')" class="vote-btn steam-btn py-2 px-3 text-sm md:text-base rounded font-bold">IA</button>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 id="coop-name-p2" class="text-[var(--gold)] mb-2 font-bold uppercase title-font">Player 2</h4>
+                        <div class="flex gap-2 justify-center">
+                            <button id="coop-p2-humano" onclick="setCoopVote(1, 'Humano')" class="vote-btn steam-btn py-2 px-3 text-sm md:text-base rounded font-bold">Humano</button>
+                            <button id="coop-p2-ia" onclick="setCoopVote(1, 'IA')" class="vote-btn steam-btn py-2 px-3 text-sm md:text-base rounded font-bold">IA</button>
+                        </div>
+                    </div>
+                </div>
+                <button id="btn-submit-coop" onclick="submitCoopVote()" disabled class="steam-btn py-3 mt-4 text-lg rounded font-bold tracking-wider opacity-50 cursor-not-allowed">Confirmar Votos</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE INSPEÇÃO DE CARTA -->
+    <div id="card-inspect-modal" onclick="closeInspectModal()" class="fixed inset-0 overlay flex flex-col items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300 p-4 cursor-pointer">
+        <div class="max-w-xs md:max-w-sm w-full relative" onclick="event.stopPropagation()">
+            <img id="inspect-card-img" src="" alt="Carta do Personagem" class="w-full h-auto rounded-xl border-2 border-[var(--gold)] shadow-[0_0_30px_rgba(244,208,63,0.4)]">
+            <button onclick="closeInspectModal()" class="mt-4 steam-btn w-full py-2 rounded font-bold text-sm">Fechar Carta</button>
+        </div>
+    </div>
+
+    <!-- FEEDBACK OVERLAY -->
+    <div id="feedback-overlay" class="fixed inset-0 overlay flex flex-col items-center justify-center z-40 hidden opacity-0 transition-opacity duration-300">
+        <div class="steampunk-box p-6 md:p-10 max-w-lg text-center w-[90%]">
+            <div class="inner-border p-4 md:p-6">
+                <h2 id="feedback-title" class="title-font text-3xl md:text-4xl font-bold uppercase tracking-widest mb-4"></h2>
+                <p id="feedback-desc" class="text-lg md:text-xl font-serif text-gray-300"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ESCOLHER PARCEIRO (BOOLE) -->
+    <div id="partner-modal" class="fixed inset-0 overlay flex flex-col items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="steampunk-box p-6 max-w-2xl text-center w-[95%] bg-[#0a0809]">
+            <div class="inner-border p-4 md:p-6">
+                <h2 class="title-font text-2xl md:text-3xl font-bold text-[#4a90e2] uppercase mb-2">Escolha seu Par</h2>
+                <p class="text-gray-300 mb-6 text-sm">Selecione quem irá operar a porta lógica junto com você nesta rodada.</p>
+                <div id="partner-options" class="flex justify-center gap-4 flex-wrap">
+                    <!-- Preenchido dinamicamente via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PORTAS LÓGICAS (BOOLE) -->
+    <div id="boole-modal" class="fixed inset-0 overlay flex flex-col items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="steampunk-box p-6 max-w-3xl text-center w-[95%] bg-[#0a0809]">
+            <div class="inner-border p-4 md:p-6">
+                <h2 class="title-font text-2xl md:text-3xl font-bold text-[#4a90e2] uppercase mb-2">Mecânica: AND-OR-NOT</h2>
+                <p class="text-gray-300 mb-6 text-sm">Selecione uma porta lógica para resolver a frase atual cooperativamente com seu parceiro.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button onclick="selectGate('AND')" class="logic-gate-btn p-4 rounded flex flex-col items-center justify-center">
+                        <svg class="gate-svg gate-and mb-2" viewBox="0 0 100 100">
+                            <path d="M 20 20 L 50 20 C 70 20 80 35 80 50 C 80 65 70 80 50 80 L 20 80 Z" />
+                            <line x1="20" y1="20" x2="20" y2="80" />
+                        </svg>
+                        <h3 class="font-bold text-[#4ade80] text-lg">AND</h3>
+                        <p class="text-[10px] text-gray-400 mt-2 leading-tight">Ambos devem acertar. (+2 pts cada). Erro = 0 pts / IA+1.</p>
+                    </button>
+                    <button onclick="selectGate('OR')" class="logic-gate-btn p-4 rounded flex flex-col items-center justify-center">
+                        <svg class="gate-svg gate-or mb-2" viewBox="0 0 100 100">
+                            <path d="M 20 20 C 40 20 60 30 80 50 C 60 70 40 80 20 80 C 35 65 35 35 20 20 Z" />
+                            <line x1="20" y1="20" x2="20" y2="80" />
+                        </svg>
+                        <h3 class="font-bold text-[#60a5fa] text-lg">OR</h3>
+                        <p class="text-[10px] text-gray-400 mt-2 leading-tight">Ao menos um acerta. (+1 pt cada). Ambos erram = IA+1.</p>
+                    </button>
+                    <button onclick="selectGate('NOT')" class="logic-gate-btn p-4 rounded flex flex-col items-center justify-center">
+                        <svg class="gate-svg gate-not mb-2" viewBox="0 0 100 100">
+                            <polygon points="20,20 20,80 70,50" fill="none" />
+                            <circle cx="80" cy="50" r="10" fill="none" />
+                        </svg>
+                        <h3 class="font-bold text-[#f87171] text-lg">NOT</h3>
+                        <p class="text-[10px] text-gray-400 mt-2 leading-tight">Os votos serão INVERTIDOS secretamente. Acerto inv. = +1 pt.</p>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME OVER OVERLAY -->
+    <div id="gameover-overlay" class="fixed inset-0 overlay flex flex-col items-center justify-center z-50 hidden">
+        <div class="steampunk-box p-8 md:p-12 max-w-3xl text-center w-[95%]">
+            <div class="inner-border p-6 md:p-8">
+                <h2 id="gameover-title" class="cinzel-font text-4xl md:text-6xl font-bold mb-4 uppercase drop-shadow-md"></h2>
+                <p id="gameover-desc" class="text-xl md:text-2xl mb-8 font-serif text-gray-300"></p>
+                
+                <div class="flex flex-wrap justify-center gap-4 md:gap-8 mb-8 border-t border-b border-[var(--copper-dark)] py-6 bg-black/40 rounded">
+                    <div id="final-panel-p1" class="text-center min-w-[90px] flex flex-col items-center">
+                        <div class="avatar-container mb-2" style="width: 52px; height: 52px;">
+                            <img id="final-img-p1" src="" alt="" class="avatar-portrait-img" onerror="this.style.display='none';">
+                        </div>
+                        <div id="final-name-p1" class="title-font text-xs md:text-sm text-[#d4a373]">Player 1</div>
+                        <div id="final-p1" class="text-3xl md:text-4xl font-bold text-white mt-1">0</div>
+                    </div>
+                    <div id="final-panel-p2" class="text-center min-w-[90px] flex flex-col items-center">
+                        <div class="avatar-container mb-2" style="width: 52px; height: 52px;">
+                            <img id="final-img-p2" src="" alt="" class="avatar-portrait-img" onerror="this.style.display='none';">
+                        </div>
+                        <div id="final-name-p2" class="title-font text-xs md:text-sm text-[#d4a373]">Player 2</div>
+                        <div id="final-p2" class="text-3xl md:text-4xl font-bold text-white mt-1">0</div>
+                    </div>
+                    <div id="final-panel-p3" class="text-center min-w-[90px] flex flex-col items-center">
+                        <div class="avatar-container mb-2" style="width: 52px; height: 52px;">
+                            <img id="final-img-p3" src="" alt="" class="avatar-portrait-img" onerror="this.style.display='none';">
+                        </div>
+                        <div id="final-name-p3" class="title-font text-xs md:text-sm text-[#d4a373]">Player 3</div>
+                        <div id="final-p3" class="text-3xl md:text-4xl font-bold text-white mt-1">0</div>
+                    </div>
+                    <div class="text-center text-red-500 border-l border-[var(--copper-dark)]/30 pl-4 md:pl-8 min-w-[90px] flex flex-col items-center justify-center">
+                        <div class="avatar-container mb-2 border-red-500" style="width: 52px; height: 52px;">
+                            <div class="avatar-content"><div class="avatar-initials text-red-500 text-base">I.A.</div></div>
+                        </div>
+                        <div class="title-font text-xs md:text-sm font-bold">Máquina</div>
+                        <div id="final-ai" class="text-3xl md:text-4xl font-bold mt-1">0</div>
+                    </div>
+                </div>
+
+                <button onclick="location.reload()" class="steam-btn py-4 px-10 text-lg md:text-xl rounded w-full">Reiniciar Sistema Mecânico</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const database = [
+            { 
+                text: "A máquina não isola o homem dos grandes problemas da natureza, mas mergulha-o mais profundamente neles.", 
+                source: "Humano", 
+                reference: "Antoine de Saint-Exupéry — Livro: 'Terra dos Homens' (1939)" 
+            },
+            { 
+                text: "Não tive filhos, não transmiti a nenhuma criatura o legado da nossa miséria.", 
+                source: "Humano", 
+                reference: "Machado de Assis — Livro: 'Memórias Póstumas de Brás Cubas' (1881)" 
+            },
+            { 
+                text: "A memória não é um arquivo fiel do passado, mas um dramaturgo silencioso que reescreve nossas dores para que possamos suportar o presente.", 
+                source: "IA" 
+            },
+            { 
+                text: "A Máquina Analítica não tem a pretensão de criar nada. Ela pode fazer tudo aquilo que soubermos ordenar-lhe que faça.", 
+                source: "Humano", 
+                reference: "Ada Lovelace — Artigo: 'Notas sobre a Máquina Analítica de Babbage' (1843)" 
+            },
+            { 
+                text: "Propomos considerar a seguinte questão: 'As máquinas podem pensar?'", 
+                source: "Humano", 
+                reference: "Alan Turing — Artigo Científico: 'Computing Machinery and Intelligence', Revista Mind (1950)" 
+            },
+            { 
+                text: "Há um instante exato no entardecer em que a luz parece hesitar, como se o próprio tempo temesse a chegada inevitável da noite.", 
+                source: "IA" 
+            },
+            { 
+                text: "Liberdade é pouco. O que eu desejo ainda não tem nome.", 
+                source: "Humano", 
+                reference: "Clarice Lispector — Livro: 'Perto do Coração Selvagem' (1943)" 
+            },
+            { 
+                text: "O correr da vida embrulha tudo, a vida é assim: esquenta e esfria, aperta e daí afrouxa, sossega e depois desinquieta.", 
+                source: "Humano", 
+                reference: "João Guimarães Rosa — Livro: 'Grande Sertão: Veredas' (1956)" 
+            },
+            { 
+                text: "Se o universo é um imenso mecanismo de relojoaria, a consciência humana é a única engrenagem que ousa questionar o relojoeiro.", 
+                source: "IA" 
+            },
+            { 
+                text: "Qualquer tecnologia suficientemente avançada é indistinguível da magia.", 
+                source: "Humano", 
+                reference: "Arthur C. Clarke — Livro/Ensaio: 'Perfis do Futuro' (1962)" 
+            },
+            { 
+                text: "A ciência é mais do que um corpo de conhecimento; é uma maneira de pensar.", 
+                source: "Humano", 
+                reference: "Carl Sagan — Livro: 'O Mundo Assombrado pelos Demônios' (1995)" 
+            },
+            { 
+                text: "Carregamos em nossos gestos mais banais o eco de ancestrais cujos nomes o pó da história já se encarregou de apagar.", 
+                source: "IA" 
+            },
+            { 
+                text: "A internet é a primeira coisa que a humanidade construiu e que ela própria não compreende, o maior experimento de anarquia que já tivemos.", 
+                source: "Humano", 
+                reference: "Eric Schmidt — Artigo/Entrevista: Financial Times & 'The New Digital Age' (2013)" 
+            },
+            { 
+                text: "A linguagem não apenas descreve o mundo; ela ergue as paredes invisíveis dentro das quais a nossa razão é obrigada a habitar.", 
+                source: "IA" 
+            },
+            { 
+                text: "Tudo vale a pena se a alma não é pequena.", 
+                source: "Humano", 
+                reference: "Fernando Pessoa — Livro: 'Mensagem - Mar Português' (1934)" 
+            },
+            { 
+                text: "O silêncio entre duas palavras ditas com receio costuma conter mais verdade do que todos os tratados já escritos sobre a alma.", 
+                source: "IA" 
+            },
+            { 
+                text: "A questão não é se máquinas inteligentes podem ter emoções, mas se máquinas podem ser inteligentes sem quaisquer emoções.", 
+                source: "Humano", 
+                reference: "Marvin Minsky — Livro/Artigo de IA: 'The Society of Mind' (1986)" 
+            },
+            { 
+                text: "Talvez a maior ironia da razão seja buscar a ordem absoluta em um cosmos que nasceu justamente do triunfo do caos.", 
+                source: "IA" 
+            },
+            { 
+                text: "Somos feitos de poeira de estrelas. Nós somos uma maneira de o cosmos se autoconhecer.", 
+                source: "Humano", 
+                reference: "Carl Sagan — Livro/Série Científica: 'Cosmos' (1980)" 
+            },
+            { 
+                text: "Acostumamo-nos tão depressa com as nossas próprias máscaras que, ao final do espetáculo, já não sabemos qual rosto sangra por baixo delas.", 
+                source: "IA" 
+            },
+            { 
+                text: "O verdadeiro perigo não é que os computadores passem a pensar como humanos, mas sim que os humanos passem a pensar como computadores.", 
+                source: "Humano", 
+                reference: "Sydney J. Harris — Artigo de Jornal: 'Chicago Daily News' (1977)" 
+            },
+            { 
+                text: "Toda descoberta científica começa como uma heresia solitária antes de se tornar o dogma inquestionável da geração seguinte.", 
+                source: "IA" 
+            },
+            { 
+                text: "Renda-se, como eu me rendi. Mergulhe no que você não conhece como eu mergulhei. Não se preocupe em entender, viver ultrapassa qualquer entendimento.", 
+                source: "Humano", 
+                reference: "Clarice Lispector — Livro: 'Uma Aprendizagem ou O Livro dos Prazeres' (1969)" 
+            },
+            { 
+                text: "A angústia moderna não nasce da falta de caminhos, mas da vertigem paralisante diante de infinitas bifurcações.", 
+                source: "IA" 
+            },
+            { 
+                text: "As pessoas mudam na exata medida em que a sua rotina é subvertida.", 
+                source: "Humano", 
+                reference: "Zygmunt Bauman — Artigo/Livro: 'Modernidade Líquida' (2000)" 
+            },
+            { 
+                text: "O esquecimento é a forma mais sutil de clemência que a natureza concedeu à fragilidade do espírito humano.", 
+                source: "IA" 
+            },
+            { 
+                text: "Nenhuma máquina jamais conhecerá o peso de uma despedida, ainda que consiga descrever cada lágrima com precisão matemática.", 
+                source: "IA" 
+            },
+            { 
+                text: "Entre o que desejamos ser e o que o mundo nos permite, resta sempre uma fresta por onde escapa a nossa verdadeira biografia.", 
+                source: "IA" 
+            },
+            { 
+                text: "O tempo não cura as feridas da alma; ele apenas nos ensina a habitar a cicatriz sem exigir que ela volte a ser pele.", 
+                source: "IA" 
+            },
+            { 
+                text: "Olhar para o abismo estrelado é compreender que somos simultaneamente irrelevantes na escala do espaço e indispensáveis na história do sentido.", 
+                source: "IA" 
+            }
+        ];
+
+        // Gera a ilustração fiel da carta em SVG caso o arquivo PNG local não seja encontrado na pasta do navegador
+        function generateSteampunkCardSVG(charId) {
+            const configs = {
+                ada: {
+                    title: "ADA LOVELACE",
+                    subtitle: "A Primeira Programadora",
+                    powerTitle: "Habilidade: Objeção de",
+                    powerTitle2: "Lady Lovelace",
+                    desc1: "Jogue o dado para retirar os",
+                    desc2: "pontos da IA",
+                    portrait: `
+                        <!-- Diagramas de fundo da Máquina Analítica -->
+                        <circle cx="245" cy="435" r="55" fill="none" stroke="#d4a373" stroke-width="1.5" opacity="0.6"/>
+                        <circle cx="245" cy="435" r="28" fill="none" stroke="#d4a373" stroke-width="1.2" opacity="0.6"/>
+                        <line x1="245" y1="355" x2="245" y2="515" stroke="#d4a373" stroke-width="1.2" opacity="0.5"/>
+                        <line x1="175" y1="435" x2="315" y2="435" stroke="#d4a373" stroke-width="1.2" opacity="0.5"/>
+                        <rect x="445" y="340" width="75" height="145" fill="none" stroke="#d4a373" stroke-width="1.5" opacity="0.6"/>
+                        <line x1="460" y1="340" x2="460" y2="485" stroke="#d4a373" stroke-width="1.2" opacity="0.5"/>
+                        <line x1="475" y1="340" x2="475" y2="485" stroke="#d4a373" stroke-width="1.2" opacity="0.5"/>
+                        <line x1="490" y1="340" x2="490" y2="485" stroke="#d4a373" stroke-width="1.2" opacity="0.5"/>
+                        <line x1="505" y1="340" x2="505" y2="485" stroke="#d4a373" stroke-width="1.2" opacity="0.5"/>
+                        <!-- Busto Ada Lovelace -->
+                        <path d="M235 620 C245 505 300 470 368 470 C436 470 495 505 505 620 Z" fill="#1b1c2e" stroke="#d4a373" stroke-width="3"/>
+                        <path d="M285 495 C320 535 415 535 450 495 L430 620 L305 620 Z" fill="#2c2338" stroke="#d4a373" stroke-width="1.5"/>
+                        <!-- Pescoço e Rosto -->
+                        <rect x="346" y="415" width="44" height="65" rx="18" fill="#ebd0b5" stroke="#5c3c28" stroke-width="2"/>
+                        <ellipse cx="368" cy="365" rx="64" ry="78" fill="#f3dac2" stroke="#5c3c28" stroke-width="2.5"/>
+                        <!-- Cabelo Vitoriano e Ornamento Floral -->
+                        <path d="M304 345 C265 340 265 415 312 415 C312 380 310 355 304 345 Z" fill="#3a2318" stroke="#d4a373" stroke-width="1.5"/>
+                        <path d="M432 345 C470 340 470 415 424 415 C424 380 426 355 432 345 Z" fill="#3a2318" stroke="#d4a373" stroke-width="1.5"/>
+                        <path d="M305 350 C310 275 426 275 431 350 C405 315 330 315 305 350 Z" fill="#2a1810"/>
+                        <circle cx="422" cy="308" r="18" fill="#e6c15a" stroke="#fff" stroke-width="1.5"/>
+                        <circle cx="445" cy="322" r="10" fill="#d4a373"/>
+                        <!-- Traços Faciais -->
+                        <path d="M332 345 Q346 337 358 345" fill="none" stroke="#3a2318" stroke-width="3" stroke-linecap="round"/>
+                        <path d="M378 345 Q392 337 404 345" fill="none" stroke="#3a2318" stroke-width="3" stroke-linecap="round"/>
+                        <circle cx="345" cy="356" r="5" fill="#2a1810"/>
+                        <circle cx="391" cy="356" r="5" fill="#2a1810"/>
+                        <path d="M368 355 L363 382 L373 384" fill="none" stroke="#8c5a35" stroke-width="2.2" stroke-linecap="round"/>
+                        <path d="M353 402 Q368 412 383 402" fill="none" stroke="#a8383b" stroke-width="3.5" stroke-linecap="round"/>
+                    `
+                },
+                alan: {
+                    title: "ALAN TURING",
+                    subtitle: "O Criptoanalista",
+                    powerTitle: "PODER: Visão Analítica",
+                    powerTitle2: "",
+                    desc1: "Utiliza sua visão para verificar",
+                    desc2: "padrões na mensagem recebida.",
+                    portrait: `
+                        <!-- Rotores da Bombe ao fundo -->
+                        <circle cx="220" cy="445" r="52" fill="none" stroke="#e5ddcc" stroke-width="2" opacity="0.7"/>
+                        <circle cx="220" cy="445" r="36" fill="none" stroke="#e5ddcc" stroke-width="1.5" stroke-dasharray="8 6" opacity="0.7"/>
+                        <rect x="450" y="365" width="95" height="115" fill="none" stroke="#e5ddcc" stroke-width="2" opacity="0.65"/>
+                        <circle cx="472" cy="395" r="10" fill="none" stroke="#e5ddcc" stroke-width="1.5" opacity="0.65"/>
+                        <circle cx="498" cy="395" r="10" fill="none" stroke="#e5ddcc" stroke-width="1.5" opacity="0.65"/>
+                        <circle cx="524" cy="395" r="10" fill="none" stroke="#e5ddcc" stroke-width="1.5" opacity="0.65"/>
+                        <circle cx="472" cy="425" r="10" fill="none" stroke="#e5ddcc" stroke-width="1.5" opacity="0.65"/>
+                        <circle cx="498" cy="425" r="10" fill="none" stroke="#e5ddcc" stroke-width="1.5" opacity="0.65"/>
+                        <circle cx="524" cy="425" r="10" fill="none" stroke="#e5ddcc" stroke-width="1.5" opacity="0.65"/>
+                        <!-- Terno e Gravata -->
+                        <path d="M225 620 C240 505 295 475 368 475 C441 475 496 505 511 620 Z" fill="#2c2a35" stroke="#e5ddcc" stroke-width="2.5"/>
+                        <polygon points="338,475 398,475 368,585" fill="#f5efe6"/>
+                        <polygon points="358,495 378,495 384,615 352,615" fill="#1a1921" stroke="#d4a373" stroke-width="1"/>
+                        <!-- Pescoço e Rosto -->
+                        <rect x="342" y="415" width="52" height="68" rx="16" fill="#e6cbb1" stroke="#4a3728" stroke-width="2"/>
+                        <path d="M302 340 C302 275 434 275 434 340 C434 415 405 445 368 445 C331 445 302 415 302 340 Z" fill="#edd5be" stroke="#4a3728" stroke-width="2.5"/>
+                        <!-- Linhas Cibernéticas de Análise no Rosto -->
+                        <path d="M385 330 L425 330 L425 405 L390 405" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.75"/>
+                        <line x1="395" y1="368" x2="432" y2="368" stroke="#ffffff" stroke-width="1.5" opacity="0.75"/>
+                        <!-- Cabelo Clássico -->
+                        <path d="M298 345 C292 270 355 250 415 268 C442 278 446 315 434 345 C420 305 385 295 345 305 C320 310 308 328 298 345 Z" fill="#231c18" stroke="#d4a373" stroke-width="1"/>
+                        <!-- Traços Faciais -->
+                        <path d="M324 342 Q342 334 356 342" fill="none" stroke="#231c18" stroke-width="3.5" stroke-linecap="round"/>
+                        <path d="M380 342 Q398 334 412 342" fill="none" stroke="#231c18" stroke-width="3.5" stroke-linecap="round"/>
+                        <circle cx="340" cy="354" r="5.5" fill="#231c18"/>
+                        <circle cx="395" cy="354" r="5.5" fill="#231c18"/>
+                        <path d="M366 350 L360 382 L374 385" fill="none" stroke="#6e4f3a" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M348 406 Q368 412 388 406" fill="none" stroke="#6e4f3a" stroke-width="3" stroke-linecap="round"/>
+                    `
+                },
+                boole: {
+                    title: "GEORGE BOOLE",
+                    subtitle: "O Pai da Lógica Digital",
+                    powerTitle: "Habilidade: AND-OR-NOT",
+                    powerTitle2: "",
+                    desc1: "Utilize as portas lógicas junto com",
+                    desc2: "outro jogador na rodada",
+                    portrait: `
+                        <!-- Portas Lógicas no Fundo -->
+                        <path d="M195 340 L235 340 C258 340 268 356 268 372 C268 388 258 404 235 404 L195 404 Z" fill="none" stroke="#f5efe6" stroke-width="2" opacity="0.8"/>
+                        <text x="230" y="378" fill="#f5efe6" font-size="18" font-family="Cinzel, serif" text-anchor="middle">AND</text>
+                        <path d="M195 425 C215 425 245 435 268 455 C245 475 215 485 195 485 C210 468 210 442 195 425 Z" fill="none" stroke="#f5efe6" stroke-width="2" opacity="0.8"/>
+                        <text x="232" y="461" fill="#f5efe6" font-size="18" font-family="Cinzel, serif" text-anchor="middle">OR</text>
+                        <path d="M465 340 L505 340 C528 340 538 356 538 372 C538 388 528 404 505 404 L465 404 Z" fill="none" stroke="#f5efe6" stroke-width="2" opacity="0.8"/>
+                        <text x="500" y="378" fill="#f5efe6" font-size="18" font-family="Cinzel, serif" text-anchor="middle">AND</text>
+                        <polygon points="475,425 475,475 525,450" fill="none" stroke="#f5efe6" stroke-width="2" opacity="0.8"/>
+                        <circle cx="533" cy="450" r="6" fill="none" stroke="#f5efe6" stroke-width="2" opacity="0.8"/>
+                        <!-- Casaco Vitoriano e Gravata Borboleta -->
+                        <path d="M225 620 C240 500 295 475 368 475 C441 475 496 500 511 620 Z" fill="#1e222d" stroke="#d4a373" stroke-width="2.5"/>
+                        <polygon points="335,475 401,475 368,595" fill="#f5efe6"/>
+                        <polygon points="338,482 368,496 338,510" fill="#232533" stroke="#d4a373" stroke-width="1"/>
+                        <polygon points="398,482 368,496 398,510" fill="#232533" stroke="#d4a373" stroke-width="1"/>
+                        <circle cx="368" cy="496" r="6" fill="#232533" stroke="#d4a373" stroke-width="1"/>
+                        <!-- Pescoço e Rosto -->
+                        <rect x="342" y="415" width="52" height="65" rx="16" fill="#e6cbb1" stroke="#4a3728" stroke-width="2"/>
+                        <path d="M302 340 C302 275 434 275 434 340 C434 415 405 445 368 445 C331 445 302 415 302 340 Z" fill="#edd5be" stroke="#4a3728" stroke-width="2.5"/>
+                        <!-- Cabelo e Costeletas Clássicas -->
+                        <path d="M298 355 C290 275 345 255 415 268 C445 275 452 335 435 385 C430 345 422 308 380 300 C335 295 312 315 298 355 Z" fill="#2c221e" stroke="#d4a373" stroke-width="1"/>
+                        <!-- Traços Faciais -->
+                        <path d="M322 340 Q340 332 356 340" fill="none" stroke="#2c221e" stroke-width="3.5" stroke-linecap="round"/>
+                        <path d="M380 340 Q398 332 414 340" fill="none" stroke="#2c221e" stroke-width="3.5" stroke-linecap="round"/>
+                        <circle cx="340" cy="353" r="5.5" fill="#231c18"/>
+                        <circle cx="395" cy="353" r="5.5" fill="#231c18"/>
+                        <path d="M366 348 L358 382 L374 385" fill="none" stroke="#6e4f3a" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M346 408 Q368 402 390 408" fill="none" stroke="#5c3c28" stroke-width="3" stroke-linecap="round"/>
+                    `
+                }
+            };
+
+            const c = configs[charId];
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 736 1040">
+                <defs>
+                    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#e8d8c0"/>
+                        <stop offset="100%" stop-color="#cbb292"/>
+                    </linearGradient>
+                    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#c48b60"/>
+                        <stop offset="50%" stop-color="#965d36"/>
+                        <stop offset="100%" stop-color="#6b3e20"/>
+                    </linearGradient>
+                    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#4d2c16"/>
+                        <stop offset="100%" stop-color="#2e180a"/>
+                    </linearGradient>
+                </defs>
+                <!-- Fundo Pergaminho da Carta -->
+                <rect width="736" height="1040" rx="34" fill="url(#bgGrad)"/>
+                <!-- Moldura Azul Escura Principal -->
+                <rect x="38" y="38" width="660" height="964" rx="22" fill="#242636" stroke="#8c5a35" stroke-width="5"/>
+                <!-- Binários no Topo e Base -->
+                <text x="368" y="64" fill="#d4a373" font-size="15" font-family="monospace" text-anchor="middle" letter-spacing="3">01110011001111010110010101000101101101010</text>
+                <!-- Cabeçalho de Cobre -->
+                <rect x="68" y="75" width="600" height="125" rx="14" fill="url(#headerGrad)" stroke="#d4a373" stroke-width="3"/>
+                <text x="368" y="138" fill="#f7d794" font-size="50" font-weight="bold" font-family="Cinzel, serif" text-anchor="middle" letter-spacing="2">${c.title}</text>
+                <text x="368" y="178" fill="#f3e5cf" font-size="27" font-family="Cinzel, serif" text-anchor="middle">${c.subtitle}</text>
+                <!-- Círculo Central de Retrato -->
+                <circle cx="368" cy="445" r="228" fill="#2d3147" stroke="#c48b60" stroke-width="5"/>
+                <circle cx="368" cy="445" r="204" fill="none" stroke="#d4a373" stroke-width="1.5" stroke-dasharray="6 4"/>
+                <!-- Engrenagens Decorativas nos Cantos -->
+                <circle cx="118" cy="252" r="32" fill="none" stroke="#c48b60" stroke-width="6" stroke-dasharray="12 8"/>
+                <circle cx="618" cy="252" r="32" fill="none" stroke="#c48b60" stroke-width="6" stroke-dasharray="12 8"/>
+                <circle cx="118" cy="655" r="28" fill="none" stroke="#c48b60" stroke-width="5" stroke-dasharray="10 7"/>
+                <circle cx="618" cy="655" r="28" fill="none" stroke="#c48b60" stroke-width="5" stroke-dasharray="10 7"/>
+                <!-- Ilustração do Personagem -->
+                <g>${c.portrait}</g>
+                <!-- Caixa de Habilidade Inferior -->
+                <rect x="68" y="715" width="600" height="245" rx="14" fill="url(#boxGrad)" stroke="#c48b60" stroke-width="4"/>
+                <text x="368" y="778" fill="#e6b87d" font-size="33" font-weight="bold" font-family="Cinzel, serif" text-anchor="middle">⚙ ${c.powerTitle}</text>
+                ${c.powerTitle2 ? `<text x="368" y="818" fill="#e6b87d" font-size="33" font-weight="bold" font-family="Cinzel, serif" text-anchor="middle">${c.powerTitle2}</text>` : ''}
+                <line x1="160" y1="${c.powerTitle2 ? 838 : 805}" x2="576" y2="${c.powerTitle2 ? 838 : 805}" stroke="#8c5a35" stroke-width="2"/>
+                <text x="368" y="${c.powerTitle2 ? 882 : 860}" fill="#e6c89c" font-size="29" font-family="Cinzel, serif" text-anchor="middle">${c.desc1}</text>
+                <text x="368" y="${c.powerTitle2 ? 922 : 905}" fill="#e6c89c" font-size="29" font-family="Cinzel, serif" text-anchor="middle">${c.desc2}</text>
+            </svg>`;
+            return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+        }
+
+        // Dados dos personagens com os caminhos exatos das imagens enviadas + fallback ilustrado em SVG
+        const CHARS_DATA = {
+            ada: {
+                id: 'ada',
+                name: 'Ada Lovelace',
+                title: 'A Primeira Programadora',
+                initials: 'A.L.',
+                color: '#d4a373',
+                img: 'carta ada frente.png',
+                svgFallback: generateSteampunkCardSVG('ada'),
+                abName: 'Objeção de Lady Lovelace',
+                abDesc: 'Anula 1 pt da IA',
+                req: 3
+            },
+            alan: {
+                id: 'alan',
+                name: 'Alan Turing',
+                title: 'O Criptoanalista',
+                initials: 'A.T.',
+                color: '#e5b869',
+                img: 'alan frente.png',
+                svgFallback: generateSteampunkCardSVG('alan'),
+                abName: 'Visão Analítica',
+                abDesc: 'Verifica padrões na mensagem',
+                req: 2
+            },
+            boole: {
+                id: 'boole',
+                name: 'George Boole',
+                title: 'O Pai da Lógica Digital',
+                initials: 'G.B.',
+                color: '#4a90e2',
+                img: 'carta boole frente.png',
+                svgFallback: generateSteampunkCardSVG('boole'),
+                abName: 'AND-OR-NOT',
+                abDesc: 'Portas lógicas em dupla',
+                req: 3
+            }
+        };
+
+        let numPlayers = 1;
+        let currentPlayerChoosing = 1;
+        let availableChars = ['ada', 'alan', 'boole'];
+        let chosenChars = [];
+
+        let players = []; 
+        let activePlayerIndex = 0;
+        let scoreAI = 0;
+        let streakAI = 0;
+        
+        let currentPool = [];
+        let currentItem = null;
+        let isProcessing = false;
+        let aiIntensity = 0;
+
+        let booleMode = null;
+        let boolePartnerIndex = null;
+        let coopVotes = [null, null];
+
+        const screens = {
+            intro: document.getElementById('intro-screen'),
+            start: document.getElementById('start-screen'),
+            charSelect: document.getElementById('char-select-screen'),
+            game: document.getElementById('game-screen')
+        };
+        const sentenceDisplay = document.getElementById('sentence-display');
+        const overlayFeedback = document.getElementById('feedback-overlay'), titleFeedback = document.getElementById('feedback-title'), descFeedback = document.getElementById('feedback-desc');
+        const overlayGameover = document.getElementById('gameover-overlay');
+
+        const canvas = document.getElementById('binary-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, columns, drops;
+        
+        function initCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            columns = Math.floor(width / 20); 
+            drops = [];
+            for (let i = 0; i < columns; i++) drops[i] = 1;
+        }
+
+        function drawRain() {
+            ctx.fillStyle = `rgba(15, 12, 14, ${0.15 - (aiIntensity * 0.1)})`;
+            ctx.fillRect(0, 0, width, height);
+            ctx.font = '15px monospace';
+            
+            for (let i = 0; i < drops.length; i++) {
+                if (Math.random() > 1 - aiIntensity) {
+                    const text = Math.random() > 0.5 ? '1' : '0';
+                    const r = Math.floor(212 + (aiIntensity * 43)); 
+                    const g = Math.floor(163 - (aiIntensity * 163)); 
+                    const b = Math.floor(115 - (aiIntensity * 115)); 
+                    const alpha = 0.2 + (aiIntensity * 0.8);
+                    
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                    ctx.fillText(text, i * 20, drops[i] * 20);
+
+                    if (drops[i] * 20 > height && Math.random() > 0.95) drops[i] = 0;
+                    drops[i]++;
+                }
+            }
+            requestAnimationFrame(drawRain);
+        }
+        
+        window.addEventListener('resize', initCanvas);
+        initCanvas();
+        drawRain();
+
+        const introPhrase = "O Jogo da Imitação: Um teste para descobrir se você consegue distinguir a genialidade de uma mente humana da precisão de uma Inteligência Artificial.";
+        let introTimeout;
+        
+        function typeIntro() {
+            const el = document.getElementById('intro-text');
+            el.classList.add('typewriter');
+            let i = 0;
+            
+            function typeChar() {
+                if (screens.intro.classList.contains('hidden')) return; 
+                if (i < introPhrase.length) {
+                    el.innerHTML += introPhrase.charAt(i);
+                    i++;
+                    introTimeout = setTimeout(typeChar, 35); 
+                } else {
+                    el.classList.remove('typewriter');
+                    setTimeout(skipIntro, 2500); 
+                }
+            }
+            typeChar();
+        }
+
+        function skipIntro() {
+            clearTimeout(introTimeout);
+            ensure8BitMusicStarted();
+            play8BitSFX('select');
+            screens.intro.classList.add('hidden');
+            screens.start.classList.remove('hidden');
+            screens.start.classList.add('flex'); 
+        }
+        
+        window.onload = typeIntro;
+
+        // ==========================================
+        // SINTETIZADOR DE MÚSICA E EFEITOS EM 8-BITS
+        // ==========================================
+        let audioCtx = null;
+        let isMusicPlaying = false;
+        let musicInterval = null;
+        let currentStep = 0;
+        let noiseBuffer = null;
+
+        // Tabela de frequências das notas musicais
+        const NOTE_FREQ = {
+            'C2': 65.41, 'D2': 73.42, 'Eb2': 77.78, 'E2': 82.41, 'F2': 87.31, 'G2': 98.00, 'Ab2': 103.83, 'A2': 110.00, 'Bb2': 116.54, 'B2': 123.47,
+            'C3': 130.81, 'D3': 146.83, 'Eb3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00, 'Ab3': 207.65, 'A3': 220.00, 'Bb3': 233.08, 'B3': 246.94,
+            'C4': 261.63, 'D4': 293.66, 'Eb4': 311.13, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'Ab4': 415.30, 'A4': 440.00, 'Bb4': 466.16, 'B4': 493.88,
+            'C5': 523.25, 'D5': 587.33, 'Eb5': 622.25, 'E5': 659.25, 'F5': 698.46, 'G5': 783.99, 'Ab5': 830.61, 'B5': 987.77, 'C6': 1046.50
+        };
+
+        // Melodia Principal 8-Bits (64 passos - Estilo Mistério Clássico / Castlevania / Mega Man)
+        const MELODY_STEPS = [
+            // Compasso 1 (Cm)
+            'C5', null, 'G4', 'Eb4', 'C4', 'Eb4', 'G4', 'C5',
+            'D5', null, 'Eb5', null, 'D5', 'C5', 'B4', 'D5',
+            // Compasso 2 (Ab -> G)
+            'C5', null, 'Ab4', 'F4', 'C4', 'F4', 'Ab4', 'C5',
+            'B4', null, 'G4', 'D4', 'G4', 'B4', 'D5', null,
+            // Compasso 3 (Fm -> Cm)
+            'F5', null, 'C5', 'Ab4', 'F4', 'Ab4', 'C5', 'F5',
+            'Eb5', null, 'C5', 'G4', 'Eb4', 'G4', 'C5', 'Eb5',
+            // Compasso 4 (Ddim -> G7)
+            'D5', 'C5', 'B4', 'C5', 'D5', 'Eb5', 'F5', 'D5',
+            'B4', null, 'G4', null, 'C5', null, null, null
+        ];
+
+        // Arpejo / Harmonia Secundária 8-Bits
+        const HARMONY_STEPS = [
+            'Eb4', null, null, null, 'G3', null, 'C4', null,
+            'F4', null, 'G4', null, 'F4', 'Eb4', 'D4', null,
+            'Eb4', null, null, null, 'Ab3', null, 'C4', null,
+            'D4', null, 'B3', null, 'D4', 'G4', 'B4', null,
+            'Ab4', null, null, null, 'C4', null, 'F4', null,
+            'G4', null, null, null, 'C4', null, 'Eb4', null,
+            'F4', null, 'D4', null, 'Ab4', null, 'F4', null,
+            'G4', 'F4', 'Eb4', 'D4', 'Eb4', null, null, null
+        ];
+
+        // Linha de Baixo Triangle 8-Bits
+        const BASS_STEPS = [
+            'C3', null, 'C2', null, 'C3', null, 'Eb3', 'D3',
+            'C3', null, 'C2', null, 'G2', null, 'B2', null,
+            'Ab2', null, 'Ab2', null, 'F2', null, 'Ab2', null,
+            'G2', null, 'G2', null, 'G2', 'A2', 'B2', 'G2',
+            'F2', null, 'F3', null, 'F2', null, 'Ab2', null,
+            'C3', null, 'G2', null, 'C3', null, 'Eb3', null,
+            'D3', null, 'A2', null, 'B2', null, 'G2', null,
+            'G2', 'G2', 'A2', 'B2', 'C3', null, 'C2', null
+        ];
+
+        // Percussão de Ruído (K = Bumbo 8-bit, S = Caixa, H = Chimbal)
+        const DRUM_STEPS = [
+            'K', 'H', 'S', 'H', 'K', 'K', 'S', 'H',
+            'K', 'H', 'S', 'H', 'K', 'S', 'K', 'S'
+        ];
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContextClass();
+
+                // Cria buffer de ruído branco para percussão 8-bits
+                const bufferSize = audioCtx.sampleRate * 0.2;
+                noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playTone(freq, type, duration, vol = 0.08, slideFreq = null) {
+            if (!audioCtx || !isMusicPlaying) return;
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, now);
+            if (slideFreq) {
+                osc.frequency.exponentialRampToValueAtTime(slideFreq, now + duration);
+            }
+
+            gain.gain.setValueAtTime(vol, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(now);
+            osc.stop(now + duration);
+        }
+
+        function playDrum(type) {
+            if (!audioCtx || !isMusicPlaying || !noiseBuffer) return;
+            const now = audioCtx.currentTime;
+
+            if (type === 'K') {
+                // Bumbo 8-bits (queda rápida de frequência)
+                playTone(130, 'triangle', 0.09, 0.14, 35);
+            } else if (type === 'S') {
+                // Caixa 8-bits (ruído curto + pulso)
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = noiseBuffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1200;
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.06, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(now);
+                noise.stop(now + 0.09);
+            } else if (type === 'H') {
+                // Chimbal 8-bits bem suave
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = noiseBuffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 5000;
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.02, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(now);
+                noise.stop(now + 0.03);
+            }
+        }
+
+        function stepSequencer() {
+            if (!isMusicPlaying) return;
+
+            const step64 = currentStep % 64;
+            const step16 = currentStep % 16;
+
+            const melodyNote = MELODY_STEPS[step64];
+            const harmonyNote = HARMONY_STEPS[step64];
+            const bassNote = BASS_STEPS[step64];
+            const drumHit = DRUM_STEPS[step16];
+
+            if (melodyNote && NOTE_FREQ[melodyNote]) {
+                playTone(NOTE_FREQ[melodyNote], 'square', 0.13, 0.045);
+            }
+            if (harmonyNote && NOTE_FREQ[harmonyNote]) {
+                playTone(NOTE_FREQ[harmonyNote], 'sawtooth', 0.11, 0.022);
+            }
+            if (bassNote && NOTE_FREQ[bassNote]) {
+                playTone(NOTE_FREQ[bassNote], 'triangle', 0.15, 0.09);
+            }
+            if (drumHit) {
+                playDrum(drumHit);
+            }
+
+            currentStep++;
+        }
+
+        function start8BitLoop() {
+            if (musicInterval) clearInterval(musicInterval);
+            // ~135 BPM em semicolcheias (110ms por passo)
+            musicInterval = setInterval(stepSequencer, 115);
+        }
+
+        function stop8BitLoop() {
+            if (musicInterval) {
+                clearInterval(musicInterval);
+                musicInterval = null;
+            }
+        }
+
+        function updateAudioButtonUI() {
+            const icon = document.getElementById('audio-icon');
+            const label = document.getElementById('audio-label');
+            const btn = document.getElementById('btn-audio-toggle');
+            if (isMusicPlaying) {
+                icon.innerText = '🔊';
+                label.innerText = 'Música 8-Bits: ON';
+                btn.classList.add('border-[var(--gold)]', 'text-[var(--gold)]');
+            } else {
+                icon.innerText = '🔇';
+                label.innerText = 'Música 8-Bits: OFF';
+                btn.classList.remove('border-[var(--gold)]', 'text-[var(--gold)]');
+            }
+        }
+
+        function toggle8BitAudio() {
+            initAudioContext();
+            isMusicPlaying = !isMusicPlaying;
+            if (isMusicPlaying) {
+                start8BitLoop();
+                play8BitSFX('select');
+            } else {
+                stop8BitLoop();
+            }
+            updateAudioButtonUI();
+        }
+
+        function ensure8BitMusicStarted() {
+            if (!audioCtx) {
+                initAudioContext();
+                isMusicPlaying = true;
+                start8BitLoop();
+                updateAudioButtonUI();
+            }
+        }
+
+        // Efeitos Sonoros Clássicos em 8-Bits para ações do jogo
+        function play8BitSFX(type) {
+            if (!audioCtx || !isMusicPlaying) return;
+            const now = audioCtx.currentTime;
+
+            if (type === 'select') {
+                playTone(523.25, 'square', 0.06, 0.06);
+                setTimeout(() => playTone(783.99, 'square', 0.08, 0.06), 55);
+            } else if (type === 'correct') {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((n, idx) => {
+                    setTimeout(() => playTone(n, 'square', 0.1, 0.07), idx * 70);
+                });
+            } else if (type === 'wrong') {
+                playTone(196.00, 'sawtooth', 0.15, 0.08, 130.81);
+                setTimeout(() => playTone(146.83, 'sawtooth', 0.25, 0.08, 98.00), 140);
+            } else if (type === 'ability') {
+                const arp = [392.00, 523.25, 659.25, 783.99, 1046.50, 1318.51];
+                arp.forEach((n, idx) => {
+                    setTimeout(() => playTone(n, 'square', 0.07, 0.06), idx * 45);
+                });
+            } else if (type === 'victory') {
+                const fanfare = [523.25, 523.25, 523.25, 523.25, 415.30, 466.16, 523.25, 466.16, 523.25];
+                const delays = [0, 130, 260, 390, 550, 750, 950, 1100, 1250];
+                fanfare.forEach((n, idx) => {
+                    setTimeout(() => playTone(n, 'square', 0.16, 0.08), delays[idx]);
+                });
+            }
+        }
+
+        function startGameSetup(n) {
+            ensure8BitMusicStarted();
+            play8BitSFX('select');
+            numPlayers = n;
+            currentPlayerChoosing = 1;
+            chosenChars = [];
+            availableChars = Object.keys(CHARS_DATA);
+            
+            screens.start.classList.add('hidden');
+            screens.start.classList.remove('flex');
+            screens.charSelect.classList.remove('hidden');
+            screens.charSelect.classList.add('flex');
+            
+            renderCharSelection();
+        }
+
+        function renderCharSelection() {
+            document.getElementById('char-select-title').innerText = `Jogador ${currentPlayerChoosing}, Escolha seu Personagem`;
+            const container = document.getElementById('char-options');
+            container.innerHTML = '';
+            
+            availableChars.forEach(id => {
+                const char = CHARS_DATA[id];
+                container.innerHTML += `
+                    <div onclick="chooseCharacter('${id}')" class="char-card w-56 md:w-64 flex flex-col items-center relative group">
+                        <!-- Imagem da Carta Completa (usa PNG local/carregado ou a Carta SVG ilustrada automaticamente) -->
+                        <img src="${char.img}" alt="${char.name}" class="card-full-img"
+                             onerror="this.onerror=null; this.src=CHARS_DATA['${id}'].svgFallback;">
+
+                        <!-- Tag de Sequência Necessária -->
+                        <div class="w-full bg-[#151012] border-t border-[#8c5a35] py-2 px-3 flex justify-between items-center text-xs">
+                            <span class="text-gray-300 font-semibold">${char.name}</span>
+                            <span class="text-[var(--gold)] font-bold">Seq: ${char.req}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function chooseCharacter(id) {
+            play8BitSFX('select');
+            chosenChars.push(id);
+            availableChars = availableChars.filter(c => c !== id);
+            
+            if (currentPlayerChoosing < numPlayers) {
+                currentPlayerChoosing++;
+                renderCharSelection();
+            } else {
+                confirmSelection();
+            }
+        }
+
+        function inspectCard(playerIndex) {
+            if (!players[playerIndex]) return;
+            const modal = document.getElementById('card-inspect-modal');
+            const img = document.getElementById('inspect-card-img');
+            const p = players[playerIndex];
+            img.onerror = function() {
+                this.onerror = null;
+                this.src = p.svgFallback;
+            };
+            img.src = p.img;
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        }
+
+        function closeInspectModal() {
+            const modal = document.getElementById('card-inspect-modal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function confirmSelection() {
+            players = chosenChars.map(id => ({ ...CHARS_DATA[id], score: 0, streak: 0 }));
+            
+            for(let i=0; i<3; i++) {
+                const panel = document.getElementById(`panel-p${i+1}`);
+                const abilityWrapper = document.getElementById(`ability-wrapper-p${i+1}`);
+                const finalPanel = document.getElementById(`final-panel-p${i+1}`);
+                
+                if (i < numPlayers) {
+                    panel.classList.remove('hidden');
+                    abilityWrapper.classList.remove('hidden');
+                    finalPanel.classList.remove('hidden');
+                    
+                    // Atualiza textos e cores
+                    document.getElementById(`name-p${i+1}`).innerText = players[i].name;
+                    document.getElementById(`name-p${i+1}`).style.color = players[i].color;
+                    document.getElementById(`name-ability-p${i+1}`).innerText = players[i].abName;
+                    document.getElementById(`status-ability-p${i+1}`).innerText = `Requer Seq: ${players[i].req}`;
+                    document.getElementById(`final-name-p${i+1}`).innerText = players[i].name;
+
+                    // Atualiza imagens dos avatares nos painéis e na tela final
+                    const avatarImg = document.getElementById(`img-p${i+1}`);
+                    const fallbackDiv = document.getElementById(`fallback-p${i+1}`);
+                    const initialsDiv = document.getElementById(`initials-p${i+1}`);
+                    
+                    avatarImg.style.display = 'block';
+                    fallbackDiv.style.display = 'none';
+                    avatarImg.onerror = function() {
+                        this.onerror = null;
+                        this.src = players[i].svgFallback;
+                    };
+                    avatarImg.src = players[i].img;
+                    initialsDiv.innerText = players[i].initials;
+                    initialsDiv.style.color = players[i].color;
+
+                    const finalImg = document.getElementById(`final-img-p${i+1}`);
+                    finalImg.style.display = 'block';
+                    finalImg.onerror = function() {
+                        this.onerror = null;
+                        this.src = players[i].svgFallback;
+                    };
+                    finalImg.src = players[i].img;
+                } else {
+                    panel.classList.add('hidden');
+                    abilityWrapper.classList.add('hidden');
+                    finalPanel.classList.add('hidden');
+                }
+            }
+
+            // Ajusta o layout do grid baseado no número de jogadores
+            const abilitiesContainer = document.getElementById('abilities-container');
+            abilitiesContainer.className = `grid gap-3 mb-6 w-full max-w-2xl ${numPlayers === 1 ? 'grid-cols-1 max-w-[260px]' : numPlayers === 2 ? 'grid-cols-2' : 'grid-cols-3'}`;
+            
+            const panelsContainer = document.getElementById('panel-p1').parentElement;
+            panelsContainer.className = `grid gap-2 md:gap-4 mb-6 items-stretch ${numPlayers === 1 ? 'grid-cols-2 max-w-lg mx-auto' : numPlayers === 2 ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`;
+
+            screens.charSelect.classList.add('hidden');
+            screens.charSelect.classList.remove('flex');
+            screens.game.classList.remove('hidden');
+            screens.game.classList.add('flex');
+            
+            currentPool = [...database];
+            shuffle(currentPool);
+            updateAiIntensity();
+            updateUI();
+            startTurn();
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function startTurn() {
+            if (currentPool.length === 0) { currentPool = [...database]; shuffle(currentPool); }
+            currentItem = currentPool.pop();
+            
+            document.getElementById('normal-voting-interface').classList.remove('hidden');
+            document.getElementById('coop-voting-interface').classList.add('hidden');
+            document.getElementById('coop-voting-interface').classList.remove('flex');
+            booleMode = null;
+            boolePartnerIndex = null;
+            coopVotes = [null, null];
+            
+            sentenceDisplay.className = "text-lg md:text-2xl text-center leading-relaxed font-serif p-2 md:p-4 w-full transition-all duration-300 typewriter text-white";
+            sentenceDisplay.innerHTML = "";
+
+            for(let i=0; i<numPlayers; i++) {
+                document.getElementById(`panel-p${i+1}`).classList.toggle('turn-active', activePlayerIndex === i);
+                document.getElementById(`panel-p${i+1}`).classList.toggle('turn-inactive', activePlayerIndex !== i);
+            }
+
+            checkAbilities();
+            typeSentence(currentItem.text);
+        }
+
+        function typeSentence(text) {
+            isProcessing = true;
+            let i = 0;
+            function typeChar() {
+                if (i < text.length) {
+                    sentenceDisplay.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(typeChar, 15);
+                } else {
+                    sentenceDisplay.classList.remove('typewriter');
+                    isProcessing = false;
+                }
+            }
+            typeChar();
+        }
+
+        function makeGuess(guess) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            const isCorrect = guess === currentItem.source;
+            const p = players[activePlayerIndex];
+
+            if (isCorrect) {
+                play8BitSFX('correct');
+                p.score++; p.streak++;
+                streakAI = 0;
+                showFeedback(true, currentItem.source, `(+1 Ponto para ${p.name})`);
+            } else {
+                play8BitSFX('wrong');
+                scoreAI++; streakAI++;
+                p.streak = 0;
+                showFeedback(false, currentItem.source, "(+1 Ponto para a Máquina)");
+            }
+
+            updateAiIntensity();
+            updateUI();
+        }
+
+        function checkAbilities() {
+            for(let i=0; i<numPlayers; i++) {
+                const p = players[i];
+                const btn = document.getElementById(`btn-ability-p${i+1}`);
+                const status = document.getElementById(`status-ability-p${i+1}`);
+                
+                if (activePlayerIndex === i && p.streak >= p.req) {
+                    btn.disabled = false;
+                    btn.classList.add('turn-active');
+                    status.innerText = "PRONTA PARA USO!";
+                    status.classList.add('text-[var(--gold)]');
+                } else {
+                    btn.disabled = true;
+                    btn.classList.remove('turn-active');
+                    status.classList.remove('text-[var(--gold)]');
+                    status.innerText = activePlayerIndex !== i ? `Aguarde o turno` : `Requer Seq: ${p.req} (Atual: ${p.streak})`;
+                }
+            }
+        }
+
+        function useAbility(playerIndex) {
+            if (isProcessing || activePlayerIndex !== playerIndex) return;
+            const p = players[playerIndex];
+            if (p.streak < p.req) return;
+            
+            play8BitSFX('ability');
+            p.streak = 0; 
+            updateUI();
+            
+            if (p.id === 'ada') {
+                scoreAI = Math.max(0, scoreAI - 1);
+                updateAiIntensity();
+                showCustomFeedback("Objeção de Lady Lovelace!", "Ada encontrou uma falha no algoritmo. A IA perdeu 1 ponto!", "var(--gold)", 2500);
+            } else if (p.id === 'alan') {
+                if (currentItem.source === 'IA') {
+                    sentenceDisplay.classList.add('anomalia-text');
+                    sentenceDisplay.innerHTML = `<span class="text-red-500 font-bold block mb-2">[ ASSINATURA DE MÁQUINA DETECTADA ]</span> ${currentItem.text}`;
+                } else {
+                    sentenceDisplay.classList.add('safe-text');
+                    sentenceDisplay.innerHTML = `<span class="text-blue-400 font-bold block mb-2">[ PADRÃO HUMANO VALIDADO ]</span> ${currentItem.text}`;
+                }
+            } else if (p.id === 'boole') {
+                openPartnerModal();
+            }
+        }
+
+        function openPartnerModal() {
+            if (numPlayers === 1) {
+                boolePartnerIndex = activePlayerIndex;
+                openBooleModal();
+                return;
+            }
+
+            const modal = document.getElementById('partner-modal');
+            const optionsContainer = document.getElementById('partner-options');
+            optionsContainer.innerHTML = '';
+            
+            for(let i=0; i<numPlayers; i++) {
+                if(i === activePlayerIndex) continue;
+                const p = players[i];
+                optionsContainer.innerHTML += `
+                    <button onclick="selectPartner(${i})" class="steam-btn py-3 px-6 rounded font-bold flex items-center gap-3" style="color: ${p.color}; border-color: ${p.color};">
+                        <div class="avatar-container" style="width: 40px; height: 40px; border-color: ${p.color};">
+                            <img src="${p.img}" alt="${p.name}" class="avatar-portrait-img" onerror="this.onerror=null; this.src=CHARS_DATA['${p.id}'].svgFallback;">
+                        </div>
+                        <span>${p.name}</span>
+                    </button>
+                `;
+            }
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        }
+
+        function selectPartner(index) {
+            boolePartnerIndex = index;
+            const modal = document.getElementById('partner-modal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                openBooleModal();
+            }, 300);
+        }
+
+        function openBooleModal() {
+            const modal = document.getElementById('boole-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        }
+        
+        function selectGate(gate) {
+            booleMode = gate;
+            const modal = document.getElementById('boole-modal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                setupCoopVoting();
+            }, 300);
+        }
+        
+        function setupCoopVoting() {
+            document.getElementById('normal-voting-interface').classList.add('hidden');
+            const coopUI = document.getElementById('coop-voting-interface');
+            coopUI.classList.remove('hidden');
+            coopUI.classList.add('flex');
+            
+            if (numPlayers === 1) {
+                document.getElementById('coop-name-p1').innerText = players[activePlayerIndex].name + " (Voto A)";
+                document.getElementById('coop-name-p1').style.color = players[activePlayerIndex].color;
+                document.getElementById('coop-name-p2').innerText = players[activePlayerIndex].name + " (Voto B)";
+                document.getElementById('coop-name-p2').style.color = players[activePlayerIndex].color;
+            } else {
+                document.getElementById('coop-name-p1').innerText = players[activePlayerIndex].name;
+                document.getElementById('coop-name-p1').style.color = players[activePlayerIndex].color;
+                document.getElementById('coop-name-p2').innerText = players[boolePartnerIndex].name;
+                document.getElementById('coop-name-p2').style.color = players[boolePartnerIndex].color;
+            }
+            
+            ['p1-humano', 'p1-ia', 'p2-humano', 'p2-ia'].forEach(id => {
+                document.getElementById('coop-' + id).classList.remove('selected-humano', 'selected-ia');
+            });
+            document.getElementById('btn-submit-coop').disabled = true;
+            document.getElementById('btn-submit-coop').classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        
+        function setCoopVote(playerSlot, vote) {
+            coopVotes[playerSlot] = vote;
+            const prefix = playerSlot === 0 ? 'p1' : 'p2';
+            document.getElementById(`coop-${prefix}-humano`).classList.remove('selected-humano');
+            document.getElementById(`coop-${prefix}-ia`).classList.remove('selected-ia');
+            
+            if (vote === 'Humano') document.getElementById(`coop-${prefix}-humano`).classList.add('selected-humano');
+            if (vote === 'IA') document.getElementById(`coop-${prefix}-ia`).classList.add('selected-ia');
+            
+            if (coopVotes[0] && coopVotes[1]) {
+                const btn = document.getElementById('btn-submit-coop');
+                btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+        
+        function submitCoopVote() {
+            if (isProcessing || !coopVotes[0] || !coopVotes[1]) return;
+            isProcessing = true;
+            
+            let v1 = coopVotes[0];
+            let v2 = coopVotes[1];
+            const real = currentItem.source;
+            
+            let title = `Porta Lógica: ${booleMode}`;
+            let desc = "";
+            let p1Correct = false;
+            let p2Correct = false;
+            
+            if (booleMode === 'NOT') {
+                v1 = v1 === 'Humano' ? 'IA' : 'Humano';
+                v2 = v2 === 'Humano' ? 'IA' : 'Humano';
+                p1Correct = (v1 === real);
+                p2Correct = (v2 === real);
+                
+                if (p1Correct) players[activePlayerIndex].score++; else scoreAI++;
+                if (p2Correct) players[boolePartnerIndex].score++; else scoreAI++;
+                
+                desc = `Votos Invertidos! Você ficou ${v1} e o par ficou ${v2}. Real: ${real}.`;
+            } else if (booleMode === 'AND') {
+                p1Correct = (v1 === real);
+                p2Correct = (v2 === real);
+                if (p1Correct && p2Correct) {
+                    players[activePlayerIndex].score += 2; players[boolePartnerIndex].score += 2;
+                    desc = `Ambos acertaram! +2 pts para cada! Real: ${real}`;
+                } else {
+                    scoreAI++;
+                    desc = `A condição AND falhou! +1 pt para a Máquina. Real: ${real}`;
+                }
+            } else if (booleMode === 'OR') {
+                p1Correct = (v1 === real);
+                p2Correct = (v2 === real);
+                if (p1Correct || p2Correct) {
+                    if(p1Correct) players[activePlayerIndex].score++;
+                    if(p2Correct) players[boolePartnerIndex].score++;
+                    desc = `A condição OR foi satisfeita! (+1 pt para acertos). Real: ${real}`;
+                } else {
+                    scoreAI++;
+                    desc = `Ambos erraram! +1 pt para a Máquina. Real: ${real}`;
+                }
+            }
+            
+            players[activePlayerIndex].streak = p1Correct ? players[activePlayerIndex].streak + 1 : 0;
+            players[boolePartnerIndex].streak = p2Correct ? players[boolePartnerIndex].streak + 1 : 0;
+            if (!p1Correct || !p2Correct) streakAI++; else streakAI = 0;
+
+            if (currentItem.reference) {
+                desc += `<div class="mt-4 pt-3 border-t border-[#8c5a35]/50 text-xs md:text-sm text-[#d4a373] italic">📜 Fonte: ${currentItem.reference}</div>`;
+            }
+
+            updateAiIntensity();
+            updateUI();
+            showCustomFeedback(title, desc, "var(--gold)", 4000);
+        }
+
+        function updateUI() {
+            for(let i=0; i<numPlayers; i++) {
+                document.getElementById(`score-p${i+1}`).innerText = players[i].score;
+                document.getElementById(`streak-p${i+1}`).innerText = players[i].streak;
+            }
+            
+            document.getElementById('score-ai').innerText = scoreAI;
+            document.getElementById('streak-ai').innerText = streakAI;
+            
+            checkAbilities();
+        }
+
+        function showFeedback(isCorrect, realSource, extraMsg) {
+            overlayFeedback.classList.remove('hidden');
+            setTimeout(() => overlayFeedback.classList.remove('opacity-0'), 10);
+
+            const sourceReferenceHTML = currentItem && currentItem.reference
+                ? `<div class="mt-4 pt-3 border-t border-[#8c5a35]/50 text-xs md:text-sm text-[#d4a373] italic">📜 Fonte: ${currentItem.reference}</div>`
+                : `<div class="mt-4 pt-3 border-t border-[#8c5a35]/50 text-xs md:text-sm text-red-400/80 italic">⚙ Fonte: Gerado por Modelo de Inteligência Artificial</div>`;
+
+            if (isCorrect) {
+                titleFeedback.innerText = "Análise Precisa";
+                titleFeedback.style.color = "var(--gold)";
+                descFeedback.innerHTML = `<div>A frase era de fato: <strong class="text-white">${realSource}</strong>. ${extraMsg}</div>${sourceReferenceHTML}`;
+            } else {
+                titleFeedback.innerText = "Erro de Cálculo";
+                titleFeedback.style.color = "var(--danger)";
+                descFeedback.innerHTML = `<div>A frase na verdade era: <strong class="text-white">${realSource}</strong>. ${extraMsg}</div>${sourceReferenceHTML}`;
+            }
+
+            setTimeout(() => {
+                overlayFeedback.classList.add('opacity-0');
+                setTimeout(() => { overlayFeedback.classList.add('hidden'); checkEndGame(); }, 300);
+            }, 3200); 
+        }
+
+        function showCustomFeedback(title, desc, color, duration = 2500) {
+            overlayFeedback.classList.remove('hidden');
+            setTimeout(() => overlayFeedback.classList.remove('opacity-0'), 10);
+
+            titleFeedback.innerText = title;
+            titleFeedback.style.color = color;
+            descFeedback.innerHTML = desc;
+
+            setTimeout(() => {
+                overlayFeedback.classList.add('opacity-0');
+                setTimeout(() => { overlayFeedback.classList.add('hidden'); checkEndGame(); }, 300);
+            }, duration);
+        }
+
+        function updateAiIntensity() {
+            aiIntensity = Math.min(0.8, 0.02 + (scoreAI / 15) * 0.78);
+        }
+
+        function checkEndGame() {
+            if (players.some(p => p.score >= 15) || scoreAI >= 15) {
+                overlayGameover.classList.remove('hidden');
+                
+                for(let i=0; i<numPlayers; i++) {
+                    document.getElementById(`final-p${i+1}`).innerText = players[i].score;
+                }
+                document.getElementById('final-ai').innerText = scoreAI;
+
+                const title = document.getElementById('gameover-title');
+                const desc = document.getElementById('gameover-desc');
+
+                const winners = players.filter(p => p.score >= 15);
+
+                if (winners.length > 0) {
+                    play8BitSFX('victory');
+                    const winnerNames = winners.map(w => w.name).join(" e ");
+                    title.innerText = "A Humanidade Venceu";
+                    title.style.color = "var(--gold)";
+                    title.style.textShadow = "0 0 20px var(--gold)";
+                    desc.innerText = `${winnerNames} atingiu os 15 pontos, dominando a lógica fria da Máquina!`;
+                    aiIntensity = 0;
+                } else if (scoreAI >= 15) {
+                    play8BitSFX('wrong');
+                    title.innerText = "A Máquina Venceu";
+                    title.style.color = "var(--danger)";
+                    title.style.textShadow = "0 0 20px red";
+                    desc.innerText = "A Inteligência Artificial alcançou 15 pontos de falhas humanas. O código dominou a realidade.";
+                    aiIntensity = 1;
+                }
+            } else {
+                activePlayerIndex = (activePlayerIndex + 1) % numPlayers;
+                startTurn();
+            }
+        }
+    </script>
+</body>
+</html>
