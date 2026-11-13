@@ -241,7 +241,7 @@
                 <h2 class="text-lg md:text-2xl mb-8 font-serif italic text-gray-300">A Máquina vs A Humanidade</h2>
                 <div class="mb-8 text-sm md:text-base leading-relaxed text-gray-400 text-left mx-auto max-w-md bg-black/40 p-4 rounded border border-[#8c5a35]/30">
                     <p class="mb-2">Engrenagens giram, válvulas apitam. O embate final pelo intelecto começou.</p>
-                    <p class="mt-2 text-[var(--gold)] text-center font-bold">Vitória: 15 pontos. Derrota (IA): 15 pontos.</p>
+                    <p class="mt-2 text-[var(--gold)] text-center font-bold">Vitória: 10 pontos. Derrota (IA): 10 pontos.</p>
                 </div>
                 <h3 class="text-[#d4a373] mb-4 uppercase tracking-widest text-sm font-bold">Quantos irão jogar?</h3>
                 <div class="flex flex-wrap gap-4 justify-center">
@@ -278,7 +278,7 @@
                         </div>
                     </div>
                     <h3 id="name-p1" class="title-font font-bold text-xs md:text-sm text-[#d4a373] leading-tight">Player 1</h3>
-                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p1">0</span><span class="text-[10px] text-gray-500">/15</span></div>
+                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p1">0</span><span class="text-[10px] text-gray-500">/10</span></div>
                     <div class="text-[9px] md:text-[10px] text-gray-400">Seq: <span id="streak-p1" class="text-[var(--gold)]">0</span></div>
                 </div>
             </div>
@@ -294,7 +294,7 @@
                         </div>
                     </div>
                     <h3 id="name-p2" class="title-font font-bold text-xs md:text-sm text-[#d4a373] leading-tight">Player 2</h3>
-                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p2">0</span><span class="text-[10px] text-gray-500">/15</span></div>
+                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p2">0</span><span class="text-[10px] text-gray-500">/10</span></div>
                     <div class="text-[9px] md:text-[10px] text-gray-400">Seq: <span id="streak-p2" class="text-[var(--gold)]">0</span></div>
                 </div>
             </div>
@@ -310,7 +310,7 @@
                         </div>
                     </div>
                     <h3 id="name-p3" class="title-font font-bold text-xs md:text-sm text-[#d4a373] leading-tight">Player 3</h3>
-                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p3">0</span><span class="text-[10px] text-gray-500">/15</span></div>
+                    <div class="text-xl md:text-3xl font-bold my-1 text-white"><span id="score-p3">0</span><span class="text-[10px] text-gray-500">/10</span></div>
                     <div class="text-[9px] md:text-[10px] text-gray-400">Seq: <span id="streak-p3" class="text-[var(--gold)]">0</span></div>
                 </div>
             </div>
@@ -325,7 +325,7 @@
                         </div>
                     </div>
                     <h3 class="title-font font-bold text-xs md:text-sm text-red-400 uppercase tracking-widest">A Máquina</h3>
-                    <div class="text-2xl md:text-3xl font-bold my-1 text-red-500"><span id="score-ai">0</span><span class="text-xs text-gray-600">/15</span></div>
+                    <div class="text-2xl md:text-3xl font-bold my-1 text-red-500"><span id="score-ai">0</span><span class="text-xs text-gray-600">/10</span></div>
                     <div class="text-[9px] md:text-[10px] text-red-300">Seq: <span id="streak-ai" class="text-red-200 font-bold">0</span></div>
                 </div>
             </div>
@@ -1654,11 +1654,11 @@
         }
 
         function updateAiIntensity() {
-            aiIntensity = Math.min(0.8, 0.02 + (scoreAI / 15) * 0.78);
+            aiIntensity = Math.min(0.8, 0.02 + (scoreAI / 10) * 0.78);
         }
 
         function checkEndGame() {
-            if (players.some(p => p.score >= 15) || scoreAI >= 15) {
+            if (players.some(p => p.score >= 10) || scoreAI >= 10) {
                 overlayGameover.classList.remove('hidden');
                 
                 for(let i=0; i<numPlayers; i++) {
@@ -1669,7 +1669,7 @@
                 const title = document.getElementById('gameover-title');
                 const desc = document.getElementById('gameover-desc');
 
-                const winners = players.filter(p => p.score >= 15);
+                const winners = players.filter(p => p.score >= 10);
 
                 if (winners.length > 0) {
                     play8BitSFX('victory');
@@ -1677,14 +1677,14 @@
                     title.innerText = "A Humanidade Venceu";
                     title.style.color = "var(--gold)";
                     title.style.textShadow = "0 0 20px var(--gold)";
-                    desc.innerText = `${winnerNames} atingiu os 15 pontos, dominando a lógica fria da Máquina!`;
+                    desc.innerText = `${winnerNames} atingiu os 10 pontos, dominando a lógica fria da Máquina!`;
                     aiIntensity = 0;
-                } else if (scoreAI >= 15) {
+                } else if (scoreAI >= 10) {
                     play8BitSFX('wrong');
                     title.innerText = "A Máquina Venceu";
                     title.style.color = "var(--danger)";
                     title.style.textShadow = "0 0 20px red";
-                    desc.innerText = "A Inteligência Artificial alcançou 15 pontos de falhas humanas. O código dominou a realidade.";
+                    desc.innerText = "A Inteligência Artificial alcançou 10 pontos de falhas humanas. O código dominou a realidade.";
                     aiIntensity = 1;
                 }
             } else {
