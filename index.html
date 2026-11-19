@@ -213,6 +213,50 @@
         
         .vote-btn.selected-humano { border-color: #60a5fa !important; box-shadow: 0 0 15px rgba(96,165,250,0.5); color: #60a5fa; }
         .vote-btn.selected-ia { border-color: #f87171 !important; box-shadow: 0 0 15px rgba(248,113,113,0.5); color: #f87171; }
+
+        /* Balão Informativo Steampunk na Seleção de Personagens */
+        .char-tooltip-balloon {
+            position: fixed;
+            z-index: 60;
+            width: 370px;
+            max-width: calc(100vw - 32px);
+            background: linear-gradient(145deg, rgba(28, 22, 25, 0.98) 0%, rgba(12, 9, 11, 0.98) 100%);
+            border: 2px solid var(--gold);
+            border-radius: 10px;
+            box-shadow: 0 14px 40px rgba(0, 0, 0, 0.92), 0 0 22px rgba(244, 208, 63, 0.28), inset 0 0 18px rgba(140, 90, 53, 0.25);
+            pointer-events: none;
+            opacity: 0;
+            transform: scale(0.96);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            backdrop-filter: blur(8px);
+        }
+
+        .char-tooltip-balloon.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .tooltip-arrow {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #171215;
+            border-top: 2px solid var(--gold);
+            border-left: 2px solid var(--gold);
+            display: none;
+        }
+
+        .tooltip-arrow.arrow-left {
+            display: block;
+            left: -8px;
+            transform: rotate(-45deg);
+        }
+
+        .tooltip-arrow.arrow-right {
+            display: block;
+            right: -8px;
+            transform: rotate(135deg);
+        }
     </style>
 </head>
 <body class="p-2 md:p-4 w-full h-full relative">
@@ -255,11 +299,36 @@
 
     <!-- SELEÇÃO DE PERSONAGENS -->
     <div id="char-select-screen" class="w-full max-w-5xl mx-auto hidden flex-col justify-center items-center min-h-[90vh] z-10 relative py-6">
-        <h2 id="char-select-title" class="title-font text-2xl md:text-4xl font-bold mb-6 text-[#d4a373] text-center uppercase tracking-widest drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+        <h2 id="char-select-title" class="title-font text-2xl md:text-4xl font-bold mb-2 text-[#d4a373] text-center uppercase tracking-widest drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
             Jogador 1, Escolha seu Personagem
         </h2>
+        <p class="text-xs md:text-sm text-gray-400 italic mb-6 text-center px-4">
+            Passe o mouse sobre uma carta para consultar a biografia histórica e a habilidade do pesquisador.
+        </p>
         <div id="char-options" class="flex flex-wrap justify-center gap-6 md:gap-8 mb-6 w-full px-2">
             <!-- Preenchido dinamicamente via JS com as Cartas -->
+        </div>
+    </div>
+
+    <!-- BALÃO INFORMATIVO DOS PERSONAGENS (HOVER) -->
+    <div id="char-tooltip-balloon" class="char-tooltip-balloon hidden p-4">
+        <div id="tooltip-arrow" class="tooltip-arrow"></div>
+        <div class="inner-border p-3 md:p-4">
+            <h3 id="tooltip-char-name" class="text-base md:text-lg font-bold tracking-wider uppercase leading-snug"></h3>
+            <p id="tooltip-char-epithet" class="text-[11px] uppercase tracking-widest text-gray-400 mb-3"></p>
+            
+            <div class="mb-3">
+                <div class="text-[10px] font-bold uppercase tracking-widest text-[var(--gold)] mb-1">📜 Contexto Histórico</div>
+                <p id="tooltip-char-history" class="text-[11px] md:text-xs text-gray-200 leading-relaxed text-justify normal-case"></p>
+            </div>
+
+            <div class="border-t border-[var(--copper-dark)]/60 pt-3">
+                <div class="flex items-center justify-between mb-1 gap-2">
+                    <span id="tooltip-ability-title" class="text-[10px] md:text-xs font-bold uppercase tracking-wider text-[#d4a373]"></span>
+                    <span id="tooltip-ability-req" class="text-[10px] font-bold px-2 py-0.5 rounded bg-black/60 border border-[var(--gold)]/60 text-[var(--gold)] whitespace-nowrap"></span>
+                </div>
+                <div id="tooltip-ability-summary" class="text-[11px] md:text-xs text-gray-300 leading-relaxed text-justify normal-case"></div>
+            </div>
         </div>
     </div>
 
@@ -336,7 +405,7 @@
                 <div id="ability-wrapper-p1" class="steampunk-box p-2 text-center">
                     <button id="btn-ability-p1" onclick="useAbility(0)" disabled class="steam-btn w-full py-2 px-2 text-xs md:text-sm rounded flex flex-col items-center justify-center min-h-[60px]">
                         <span id="name-ability-p1" class="font-bold">Habilidade P1</span>
-                        <span id="status-ability-p1" class="text-[9px] md:text-[10px] lowercase tracking-widest mt-1 opacity-80">Requer Seq: 3</span>
+                        <span id="status-ability-p1" class="text-[9px] md:text-[10px] lowercase tracking-widest mt-1 opacity-80">Requer Seq: 2</span>
                     </button>
                 </div>
                 
@@ -350,9 +419,16 @@
                 <div id="ability-wrapper-p3" class="steampunk-box p-2 text-center">
                     <button id="btn-ability-p3" onclick="useAbility(2)" disabled class="steam-btn w-full py-2 px-2 text-xs md:text-sm rounded flex flex-col items-center justify-center min-h-[60px]">
                         <span id="name-ability-p3" class="font-bold">Habilidade P3</span>
-                        <span id="status-ability-p3" class="text-[9px] md:text-[10px] lowercase tracking-widest mt-1 opacity-80">Requer Seq: 3</span>
+                        <span id="status-ability-p3" class="text-[9px] md:text-[10px] lowercase tracking-widest mt-1 opacity-80">Requer Seq: 2</span>
                     </button>
                 </div>
+            </div>
+
+            <!-- Título Carta Mensagem acima do quadro de análise -->
+            <div class="w-full text-center relative z-10 -mb-[2px]">
+                <span class="inline-block px-5 py-1.5 text-xs md:text-sm font-bold uppercase tracking-[0.2em] text-[var(--gold)] bg-gradient-to-b from-[#2a2024] to-[#151012] border-2 border-b-0 border-[var(--copper-dark)] rounded-t-lg shadow-[0_-4px_12px_rgba(140,90,53,0.35)]">
+                    ✉ Carta Mensagem
+                </span>
             </div>
 
             <div class="steampunk-box w-full min-h-[140px] md:min-h-[180px] p-4 md:p-6 mb-6 flex items-center justify-center relative bg-[#050404]">
@@ -816,31 +892,37 @@
                 svgFallback: generateSteampunkCardSVG('ada'),
                 abName: 'Objeção de Lady Lovelace',
                 abDesc: 'Anula 1 pt da IA',
-                req: 3
+                req: 2,
+                history: 'Augusta Ada Byron King, foi uma matemática e escritora do período do século XIX, que foi responsável por contribuições no campo das ciências exatas e reconhecida como a primeira programadora, criando um algoritmo quase 100 anos antes dos computadores. O algoritmo a ela creditado foi escrito nas conhecidas notas da tradução de um artigo, escrito pelo futuro Primeiro Ministro da Itália Luigi Menabrea, sobre a máquina analítica de Charles Babbage. Na última nota de rodapé, denominada como nota G, é onde está escrito o que é considerado o primeiro código de computador do mundo. (Menabrea, 2025).',
+                abSummary: 'Atuando como defensora do grupo, a personagem pode subtrair pontos da IA. A cada dois acertos consecutivos, o jogador pode ativar essa habilidade para retirar um ponto acumulado pelo sistema.'
             },
             alan: {
                 id: 'alan',
                 name: 'Alan Turing',
-                title: 'O Criptoanalista',
+                title: 'O Pai das Ciências da Computação',
                 initials: 'A.T.',
                 color: '#e5b869',
                 img: 'alan frente.png',
                 svgFallback: generateSteampunkCardSVG('alan'),
                 abName: 'Visão Analítica',
                 abDesc: 'Verifica padrões na mensagem',
-                req: 2
+                req: 2,
+                history: 'Em 1931 ingressou na Universidade de Cambridge para estudar matemática, famoso pela quebra na criptografia da Máquina Enigma que transmitia mensagens alemãs via rádio durante a Segunda Guerra Mundial, fornecendo uma enorme quantidade de informações militares aos Aliados. Foi um dos fundadores da inteligência artificial, argumentando que o cérebro humano poderia ser comparado a uma “máquina de computação digital”.',
+                abSummary: 'Utiliza sua visão para verificar padrões na mensagem recebida. Turing consegue "escanear" a Carta Mensagem em busca de jargões comuns de LLMs ou vícios de linguagem, assim sabendo de forma certeira se a mensagem é de IA ou não.'
             },
             boole: {
                 id: 'boole',
                 name: 'George Boole',
-                title: 'O Pai da Lógica Digital',
+                title: 'O Pai da Lógica',
                 initials: 'G.B.',
                 color: '#4a90e2',
                 img: 'carta boole frente.png',
                 svgFallback: generateSteampunkCardSVG('boole'),
                 abName: 'AND-OR-NOT',
                 abDesc: 'Portas lógicas em dupla',
-                req: 3
+                req: 2,
+                history: 'Matemático inglês que estabeleceu a simbologia lógica moderna, hoje denominada Lógica Booleana. Argumentava em seus estudos sobre a unificação de símbolos algébricos e formas lógicas, resultando em um método simbólico geral utilizado principalmente para a representação de entrada e saída de dados na computação moderna.',
+                abSummary: 'Baseia-se no uso de portas lógicas aplicadas em conjunto com o palpite de um colega. Após os participantes registrarem suas respostas, o jogador que controla Boole pode ativar uma das portas lógicas abaixo:<ul class="mt-2 space-y-1 text-left list-none"><li><strong class="text-green-400">• AND (E):</strong> Ambos devem acertar. Em caso de sucesso, ganham pontuação em dobro; se qualquer um errar, a IA pontua.</li><li><strong class="text-blue-400">• OR (OU):</strong> O acerto de apenas um dos dois jogadores já garante a pontuação para ambos.</li><li><strong class="text-red-400">• NOT (NÃO):</strong> Inverte a escolha feita por ele e pelo outro jogador selecionado.</li></ul>'
             }
         };
 
@@ -1214,11 +1296,15 @@
             document.getElementById('char-select-title').innerText = `Jogador ${currentPlayerChoosing}, Escolha seu Personagem`;
             const container = document.getElementById('char-options');
             container.innerHTML = '';
+            hideCharTooltip();
             
             availableChars.forEach(id => {
                 const char = CHARS_DATA[id];
                 container.innerHTML += `
-                    <div onclick="chooseCharacter('${id}')" class="char-card w-56 md:w-64 flex flex-col items-center relative group">
+                    <div onclick="chooseCharacter('${id}')"
+                         onmouseenter="showCharTooltip('${id}', this)"
+                         onmouseleave="hideCharTooltip()"
+                         class="char-card w-56 md:w-64 flex flex-col items-center relative group">
                         <!-- Imagem da Carta Completa (usa PNG local/carregado ou a Carta SVG ilustrada automaticamente) -->
                         <img src="${char.img}" alt="${char.name}" class="card-full-img"
                              onerror="this.onerror=null; this.src=CHARS_DATA['${id}'].svgFallback;">
@@ -1233,7 +1319,76 @@
             });
         }
 
+        // Exibe e posiciona dinamicamente o balão histórico/habilidade ao passar o mouse na carta
+        function showCharTooltip(charId, cardEl) {
+            const char = CHARS_DATA[charId];
+            const tooltip = document.getElementById('char-tooltip-balloon');
+            const arrow = document.getElementById('tooltip-arrow');
+            if (!char || !tooltip) return;
+
+            document.getElementById('tooltip-char-name').innerText = char.name;
+            document.getElementById('tooltip-char-name').style.color = char.color;
+            document.getElementById('tooltip-char-epithet').innerText = char.title;
+            document.getElementById('tooltip-char-history').innerText = char.history;
+            document.getElementById('tooltip-ability-title').innerText = `⚙ Mecânica: ${char.abName}`;
+            document.getElementById('tooltip-ability-req').innerText = `Seq: ${char.req}`;
+            document.getElementById('tooltip-ability-summary').innerHTML = char.abSummary;
+
+            tooltip.classList.remove('hidden');
+            arrow.className = 'tooltip-arrow';
+
+            const rect = cardEl.getBoundingClientRect();
+            const ttWidth = tooltip.offsetWidth;
+            const ttHeight = tooltip.offsetHeight;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const margin = 16;
+
+            let left, top;
+
+            // Tenta posicionar à direita ou à esquerda da carta sem cortar na tela
+            if (rect.right + ttWidth + 24 <= vw) {
+                left = rect.right + 16;
+                top = rect.top + (rect.height / 2) - (ttHeight / 2);
+                top = Math.max(margin, Math.min(vh - ttHeight - margin, top));
+                arrow.classList.add('arrow-left');
+                const arrowTop = Math.max(24, Math.min(ttHeight - 36, (rect.top + rect.height / 2) - top - 7));
+                arrow.style.top = `${arrowTop}px`;
+            } else if (rect.left - ttWidth - 24 >= 0) {
+                left = rect.left - ttWidth - 16;
+                top = rect.top + (rect.height / 2) - (ttHeight / 2);
+                top = Math.max(margin, Math.min(vh - ttHeight - margin, top));
+                arrow.classList.add('arrow-right');
+                const arrowTop = Math.max(24, Math.min(ttHeight - 36, (rect.top + rect.height / 2) - top - 7));
+                arrow.style.top = `${arrowTop}px`;
+            } else {
+                // Fallback para telas menores: centraliza horizontalmente abaixo ou acima
+                left = Math.max(margin, (vw - ttWidth) / 2);
+                top = (rect.bottom + ttHeight + margin <= vh)
+                    ? rect.bottom + 12
+                    : Math.max(margin, rect.top - ttHeight - 12);
+            }
+
+            tooltip.style.left = `${left}px`;
+            tooltip.style.top = `${top}px`;
+
+            requestAnimationFrame(() => {
+                tooltip.classList.add('visible');
+            });
+        }
+
+        function hideCharTooltip() {
+            const tooltip = document.getElementById('char-tooltip-balloon');
+            if (!tooltip) return;
+            tooltip.classList.remove('visible');
+            tooltip.classList.add('hidden');
+        }
+
+        window.addEventListener('scroll', hideCharTooltip);
+        window.addEventListener('resize', hideCharTooltip);
+
         function chooseCharacter(id) {
+            hideCharTooltip();
             play8BitSFX('select');
             chosenChars.push(id);
             availableChars = availableChars.filter(c => c !== id);
