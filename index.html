@@ -22,6 +22,11 @@
             font-family: 'Cinzel', serif;
             overflow-x: hidden;
             min-height: 100vh;
+            transition: background-color 0.8s ease;
+        }
+
+        body.ai-winning-bg {
+            background-color: #1c0507;
         }
 
         /* Canvas Fundo */
@@ -33,6 +38,51 @@
             height: 100%;
             z-index: 0;
             pointer-events: none;
+        }
+
+        /* Canvas das Engrenagens Dinâmicas */
+        #gears-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Camada Atmosférica (Normal vs Alerta Vermelho da IA) */
+        #bg-mood-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+            background: radial-gradient(circle at center, transparent 45%, rgba(0, 0, 0, 0.55) 100%);
+            transition: background 0.8s ease, box-shadow 0.8s ease, opacity 0.5s ease;
+        }
+
+        #bg-mood-overlay.humans-winning {
+            background: radial-gradient(circle at center, rgba(212, 163, 115, 0.04) 20%, rgba(15, 12, 14, 0.45) 100%);
+            box-shadow: inset 0 0 70px rgba(212, 163, 115, 0.14);
+        }
+
+        #bg-mood-overlay.ai-winning {
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    rgba(255, 20, 30, 0.04) 0px,
+                    rgba(255, 20, 30, 0.04) 1px,
+                    transparent 1px,
+                    transparent 4px
+                ),
+                radial-gradient(circle at center, rgba(160, 12, 22, 0.18) 15%, rgba(120, 5, 12, 0.58) 100%);
+            box-shadow: inset 0 0 110px rgba(231, 40, 40, 0.55);
+            animation: ai-red-pulse 2.2s ease-in-out infinite;
+        }
+
+        @keyframes ai-red-pulse {
+            0%, 100% { opacity: 0.85; }
+            50% { opacity: 1; }
         }
 
         .font-serif { font-family: 'Cinzel', serif; }
@@ -262,6 +312,8 @@
 <body class="p-2 md:p-4 w-full h-full relative">
 
     <canvas id="binary-canvas"></canvas>
+    <canvas id="gears-canvas"></canvas>
+    <div id="bg-mood-overlay"></div>
 
     <!-- CONTROLE DE ÁUDIO 8-BITS -->
     <div class="fixed top-3 right-3 z-50 flex items-center gap-2">
@@ -957,28 +1009,368 @@
 
         const canvas = document.getElementById('binary-canvas');
         const ctx = canvas.getContext('2d');
+        const gearsCanvas = document.getElementById('gears-canvas');
+        const gearsCtx = gearsCanvas.getContext('2d');
+        const bgMoodOverlay = document.getElementById('bg-mood-overlay');
         let width, height, columns, drops;
+
+        // Estado visual dinâmico do fundo ('normal' | 'humans' | 'ai')
+        let bgMoodState = 'normal';
+        let gearClusters = [];
+        let lastFrameTime = performance.now();
+        let glitchBurstRemaining = 0;
+        let nextGlitchCountdown = 0.5;
+        let glitchBars = [];
+
+        function updateBackgroundMood(forcedState = null) {
+            if (forcedState) {
+                bgMoodState = forcedState;
+            } else {
+                const inGame = !screens.game.classList.contains('hidden');
+                if (!inGame || players.length === 0) {
+                    bgMoodState = 'normal';
+                } else {
+                    const maxHumanScore = Math.max(...players.map(p => p.score));
+                    if (scoreAI > maxHumanScore) {
+                        bgMoodState = 'ai';
+                    } else if (maxHumanScore > scoreAI) {
+                        bgMoodState = 'humans';
+                    } else {
+                        bgMoodState = 'normal';
+                    }
+                }
+            }
+
+            document.body.classList.toggle('ai-winning-bg', bgMoodState === 'ai');
+            bgMoodOverlay.classList.toggle('ai-winning', bgMoodState === 'ai');
+            bgMoodOverlay.classList.toggle('humans-winning', bgMoodState === 'humans');
+        }
+
+        // Constrói conjuntos de engrenagens sincronizadas (com dentes encaixados) ao redor da tela
+        function buildGearClusters() {
+            const mod = width < 768 ? 16 : 22;
+            const pitchR = (teeth, m = mod) => (teeth * m) / (2 * Math.PI);
+
+            function createCluster(rootX, rootY, rootTeeth, baseSpeed, opacity, childrenDefs, customMod = mod) {
+                const gears = [];
+                const root = {
+                    x: rootX,
+                    y: rootY,
+                    teeth: rootTeeth,
+                    mod: customMod,
+                    pitchRadius: pitchR(rootTeeth, customMod),
+                    angle: Math.random() * Math.PI * 2,
+                    speed: baseSpeed,
+                    opacity: opacity,
+                    spokes: rootTeeth >= 18 ? 6 : (rootTeeth >= 12 ? 5 : 4),
+                    parentIdx: -1,
+                    connectAngle: 0
+                };
+                gears.push(root);
+
+                childrenDefs.forEach(def => {
+                    const parent = gears[def.parent];
+                    const rChild = pitchR(def.teeth, customMod);
+                    const dist = parent.pitchRadius + rChild;
+                    const cx = parent.x + Math.cos(def.connectAngle) * dist;
+                    const cy = parent.y + Math.sin(def.connectAngle) * dist;
+                    const child = {
+                        x: cx,
+                        y: cy,
+                        teeth: def.teeth,
+                        mod: customMod,
+                        pitchRadius: rChild,
+                        angle: 0,
+                        speed: -parent.speed * (parent.teeth / def.teeth),
+                        opacity: def.opacity ?? opacity,
+                        spokes: def.teeth >= 18 ? 6 : (def.teeth >= 12 ? 5 : 4),
+                        parentIdx: def.parent,
+                        connectAngle: def.connectAngle
+                    };
+                    gears.push(child);
+                });
+
+                return gears;
+            }
+
+            gearClusters = [
+                // Conjunto Superior Esquerdo
+                createCluster(width * 0.06, height * 0.12, 20, 0.24, 0.28, [
+                    { parent: 0, teeth: 12, connectAngle: 0.55, opacity: 0.24 },
+                    { parent: 1, teeth: 16, connectAngle: 1.75, opacity: 0.2 }
+                ]),
+                // Conjunto Inferior Direito
+                createCluster(width * 0.94, height * 0.88, 22, -0.22, 0.28, [
+                    { parent: 0, teeth: 14, connectAngle: Math.PI + 0.55, opacity: 0.24 },
+                    { parent: 1, teeth: 10, connectAngle: Math.PI - 0.65, opacity: 0.22 }
+                ]),
+                // Conjunto Superior Direito
+                createCluster(width * 0.92, height * 0.14, 16, -0.28, 0.22, [
+                    { parent: 0, teeth: 11, connectAngle: Math.PI - 0.85, opacity: 0.18 }
+                ]),
+                // Conjunto Inferior Esquerdo
+                createCluster(width * 0.08, height * 0.88, 18, 0.25, 0.22, [
+                    { parent: 0, teeth: 12, connectAngle: -0.6, opacity: 0.18 }
+                ]),
+                // Engrenagem Central Gigante de Fundo (profundidade sutil)
+                createCluster(width * 0.5, height * 0.52, 28, 0.08, 0.085, [], mod * 1.35)
+            ];
+        }
+
+        // Desenha uma engrenagem steampunk detalhada (dentes, raios, anel interno e rebites)
+        function drawSteampunkGear(gCtx, x, y, teeth, mod, angle, spokes, strokeColor, fillColor, lineWidth = 2) {
+            const pitchR = (teeth * mod) / (2 * Math.PI);
+            const outerR = pitchR + mod * 0.42;
+            const rootR = Math.max(8, pitchR - mod * 0.46);
+            const innerRimR = rootR * 0.76;
+            const hubR = rootR * 0.28;
+            const step = (Math.PI * 2) / teeth;
+
+            gCtx.save();
+            gCtx.translate(x, y);
+            gCtx.rotate(angle);
+
+            // Contorno dentado externo
+            gCtx.beginPath();
+            for (let i = 0; i < teeth; i++) {
+                const a = i * step;
+                const a1 = a - step * 0.34;
+                const a2 = a - step * 0.20;
+                const a3 = a + step * 0.20;
+                const a4 = a + step * 0.34;
+                if (i === 0) {
+                    gCtx.moveTo(Math.cos(a1) * rootR, Math.sin(a1) * rootR);
+                } else {
+                    gCtx.lineTo(Math.cos(a1) * rootR, Math.sin(a1) * rootR);
+                }
+                gCtx.lineTo(Math.cos(a2) * outerR, Math.sin(a2) * outerR);
+                gCtx.lineTo(Math.cos(a3) * outerR, Math.sin(a3) * outerR);
+                gCtx.lineTo(Math.cos(a4) * rootR, Math.sin(a4) * rootR);
+            }
+            gCtx.closePath();
+            gCtx.fillStyle = fillColor;
+            gCtx.fill();
+            gCtx.strokeStyle = strokeColor;
+            gCtx.lineWidth = lineWidth;
+            gCtx.stroke();
+
+            // Aros internos vazados (efeito mecânico)
+            gCtx.beginPath();
+            gCtx.arc(0, 0, innerRimR, 0, Math.PI * 2);
+            gCtx.stroke();
+
+            // Raios da engrenagem
+            const spokeStep = (Math.PI * 2) / spokes;
+            for (let s = 0; s < spokes; s++) {
+                const sa = s * spokeStep;
+                const w = Math.max(3, rootR * 0.085);
+                gCtx.save();
+                gCtx.rotate(sa);
+                gCtx.beginPath();
+                gCtx.rect(hubR * 0.85, -w / 2, innerRimR - hubR * 0.85, w);
+                gCtx.fillStyle = fillColor;
+                gCtx.fill();
+                gCtx.stroke();
+                gCtx.restore();
+            }
+
+            // Rebites decorativos no anel
+            const rivetR = (rootR + innerRimR) / 2;
+            const rivetCount = Math.max(6, spokes * 2);
+            gCtx.fillStyle = strokeColor;
+            for (let r = 0; r < rivetCount; r++) {
+                const ra = (r * Math.PI * 2) / rivetCount;
+                gCtx.beginPath();
+                gCtx.arc(Math.cos(ra) * rivetR, Math.sin(ra) * rivetR, Math.max(1.5, mod * 0.09), 0, Math.PI * 2);
+                gCtx.fill();
+            }
+
+            // Núcleo central e eixo
+            gCtx.beginPath();
+            gCtx.arc(0, 0, hubR, 0, Math.PI * 2);
+            gCtx.fillStyle = fillColor;
+            gCtx.fill();
+            gCtx.stroke();
+
+            gCtx.beginPath();
+            gCtx.arc(0, 0, hubR * 0.45, 0, Math.PI * 2);
+            gCtx.stroke();
+
+            gCtx.restore();
+        }
+
+        function animateGears(now) {
+            const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+            lastFrameTime = now;
+
+            gearsCtx.clearRect(0, 0, width, height);
+
+            const isAiWinning = (bgMoodState === 'ai');
+            const isHumansWinning = (bgMoodState === 'humans');
+
+            // Controla rajadas aleatórias de glitch quando a IA está vencendo
+            let inGlitchBurst = false;
+            if (isAiWinning) {
+                if (glitchBurstRemaining > 0) {
+                    glitchBurstRemaining -= dt;
+                    inGlitchBurst = true;
+                } else {
+                    nextGlitchCountdown -= dt;
+                    if (nextGlitchCountdown <= 0) {
+                        glitchBurstRemaining = 0.12 + Math.random() * 0.26;
+                        nextGlitchCountdown = 0.25 + Math.random() * 0.9;
+                        inGlitchBurst = true;
+                        // Gera faixas horizontais de glitch temporárias
+                        glitchBars = [];
+                        const barCount = 2 + Math.floor(Math.random() * 4);
+                        for (let b = 0; b < barCount; b++) {
+                            glitchBars.push({
+                                y: Math.random() * height,
+                                h: 2 + Math.random() * 14,
+                                alpha: 0.08 + Math.random() * 0.18
+                            });
+                        }
+                    }
+                }
+            } else {
+                glitchBurstRemaining = 0;
+                glitchBars = [];
+            }
+
+            // Atualiza e desenha cada conjunto de engrenagens
+            for (let c = 0; c < gearClusters.length; c++) {
+                const cluster = gearClusters[c];
+                const root = cluster[0];
+
+                // Rotação normal suave vs rotação com travamentos/reversões (glitch) da IA
+                if (!isAiWinning) {
+                    const boost = isHumansWinning ? 1.15 : 1.0;
+                    root.angle += root.speed * boost * dt;
+                } else {
+                    if (inGlitchBurst) {
+                        const glitchBehavior = Math.random();
+                        if (glitchBehavior < 0.38) {
+                            // Reversão brusca
+                            root.angle -= root.speed * (2.5 + Math.random() * 4) * dt;
+                        } else if (glitchBehavior < 0.72) {
+                            // Travamento / engasgo mecânico
+                            root.angle += (Math.random() - 0.5) * 0.06;
+                        } else {
+                            // Salto angular aleatório
+                            root.angle += root.speed * 5.5 * dt;
+                        }
+                    } else {
+                        // Mesmo fora da rajada forte, gira instável com micro-tremores
+                        const jitterSpeed = 0.6 + Math.random() * 1.1;
+                        root.angle += root.speed * jitterSpeed * dt;
+                    }
+                }
+
+                // Sincroniza ângulos das engrenagens filhas encaixadas
+                for (let i = 1; i < cluster.length; i++) {
+                    const g = cluster[i];
+                    const parent = cluster[g.parentIdx];
+                    g.angle = g.connectAngle + Math.PI + (Math.PI / g.teeth) - (parent.angle - g.connectAngle) * (parent.teeth / g.teeth);
+                    // Durante o glitch da IA, até o encaixe das engrenagens sofre dessincronização momentânea
+                    if (isAiWinning && inGlitchBurst && Math.random() < 0.45) {
+                        g.angle += (Math.random() - 0.5) * 0.25;
+                    }
+                }
+
+                // Renderiza as engrenagens do conjunto
+                for (let i = 0; i < cluster.length; i++) {
+                    const g = cluster[i];
+                    let drawX = g.x;
+                    let drawY = g.y;
+                    let alpha = g.opacity;
+
+                    if (isAiWinning) {
+                        // Micro-vibração constante + saltos fortes durante glitch
+                        const shake = inGlitchBurst ? 9 : 1.8;
+                        drawX += (Math.random() - 0.5) * shake;
+                        drawY += (Math.random() - 0.5) * shake;
+                        alpha = g.opacity * (inGlitchBurst ? (0.7 + Math.random() * 0.85) : 1.15);
+
+                        // Efeito fantasma cromático (duplicação glitch) durante rajadas
+                        if (inGlitchBurst && Math.random() < 0.75) {
+                            const ghostOffsetX = (Math.random() - 0.5) * 18;
+                            const ghostOffsetY = (Math.random() - 0.5) * 6;
+                            drawSteampunkGear(
+                                gearsCtx,
+                                drawX + ghostOffsetX,
+                                drawY + ghostOffsetY,
+                                g.teeth,
+                                g.mod,
+                                g.angle + (Math.random() - 0.5) * 0.12,
+                                g.spokes,
+                                `rgba(255, 60, 90, ${Math.min(0.65, alpha * 0.85)})`,
+                                `rgba(255, 20, 40, ${alpha * 0.14})`,
+                                1.5
+                            );
+                        }
+
+                        const strokeRed = `rgba(245, 55, 55, ${Math.min(0.75, alpha * 1.4)})`;
+                        const fillRed = `rgba(110, 12, 16, ${Math.min(0.35, alpha * 0.65)})`;
+                        drawSteampunkGear(gearsCtx, drawX, drawY, g.teeth, g.mod, g.angle, g.spokes, strokeRed, fillRed, 2);
+                    } else if (isHumansWinning) {
+                        const strokeGold = `rgba(235, 192, 105, ${alpha * 1.18})`;
+                        const fillGold = `rgba(74, 48, 28, ${alpha * 0.5})`;
+                        drawSteampunkGear(gearsCtx, drawX, drawY, g.teeth, g.mod, g.angle, g.spokes, strokeGold, fillGold, 2);
+                    } else {
+                        const strokeCopper = `rgba(212, 163, 115, ${alpha})`;
+                        const fillCopper = `rgba(56, 36, 24, ${alpha * 0.45})`;
+                        drawSteampunkGear(gearsCtx, drawX, drawY, g.teeth, g.mod, g.angle, g.spokes, strokeCopper, fillCopper, 2);
+                    }
+                }
+            }
+
+            // Desenha faixas sutis de interferência vermelha no fundo durante glitches da IA
+            if (isAiWinning && inGlitchBurst && glitchBars.length > 0) {
+                for (let b = 0; b < glitchBars.length; b++) {
+                    const bar = glitchBars[b];
+                    gearsCtx.fillStyle = `rgba(255, 35, 45, ${bar.alpha})`;
+                    gearsCtx.fillRect(0, bar.y, width, bar.h);
+                }
+            }
+
+            requestAnimationFrame(animateGears);
+        }
         
         function initCanvas() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
+            width = canvas.width = gearsCanvas.width = window.innerWidth;
+            height = canvas.height = gearsCanvas.height = window.innerHeight;
             columns = Math.floor(width / 20); 
             drops = [];
             for (let i = 0; i < columns; i++) drops[i] = 1;
+            buildGearClusters();
         }
 
         function drawRain() {
-            ctx.fillStyle = `rgba(15, 12, 14, ${0.15 - (aiIntensity * 0.1)})`;
+            if (bgMoodState === 'ai') {
+                ctx.fillStyle = `rgba(28, 5, 7, ${Math.max(0.08, 0.16 - (aiIntensity * 0.08))})`;
+            } else {
+                ctx.fillStyle = `rgba(15, 12, 14, ${0.15 - (aiIntensity * 0.1)})`;
+            }
             ctx.fillRect(0, 0, width, height);
             ctx.font = '15px monospace';
             
+            const effectiveIntensity = bgMoodState === 'ai' ? Math.max(0.35, aiIntensity) : aiIntensity;
+
             for (let i = 0; i < drops.length; i++) {
-                if (Math.random() > 1 - aiIntensity) {
+                if (Math.random() > 1 - effectiveIntensity) {
                     const text = Math.random() > 0.5 ? '1' : '0';
-                    const r = Math.floor(212 + (aiIntensity * 43)); 
-                    const g = Math.floor(163 - (aiIntensity * 163)); 
-                    const b = Math.floor(115 - (aiIntensity * 115)); 
-                    const alpha = 0.2 + (aiIntensity * 0.8);
+                    let r, g, b, alpha;
+                    if (bgMoodState === 'ai') {
+                        r = 255;
+                        g = Math.floor(30 + Math.random() * 35);
+                        b = Math.floor(35 + Math.random() * 25);
+                        alpha = 0.35 + (effectiveIntensity * 0.6);
+                    } else {
+                        r = Math.floor(212 + (aiIntensity * 43)); 
+                        g = Math.floor(163 - (aiIntensity * 163)); 
+                        b = Math.floor(115 - (aiIntensity * 115)); 
+                        alpha = 0.2 + (aiIntensity * 0.8);
+                    }
                     
                     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
                     ctx.fillText(text, i * 20, drops[i] * 20);
@@ -993,288 +1385,223 @@
         window.addEventListener('resize', initCanvas);
         initCanvas();
         drawRain();
+        requestAnimationFrame(animateGears);
 
-        const introPhrase = "O Jogo da Imitação: Um teste para descobrir se você consegue distinguir a genialidade de uma mente humana da precisão de uma Inteligência Artificial.";
-        let introTimeout;
-        
-        function typeIntro() {
-            const el = document.getElementById('intro-text');
-            el.classList.add('typewriter');
-            let i = 0;
-            
-            function typeChar() {
-                if (screens.intro.classList.contains('hidden')) return; 
-                if (i < introPhrase.length) {
-                    el.innerHTML += introPhrase.charAt(i);
-                    i++;
-                    introTimeout = setTimeout(typeChar, 35); 
-                } else {
-                    el.classList.remove('typewriter');
-                    setTimeout(skipIntro, 2500); 
-                }
-            }
-            typeChar();
-        }
-
-        function skipIntro() {
-            clearTimeout(introTimeout);
-            ensure8BitMusicStarted();
-            play8BitSFX('select');
-            screens.intro.classList.add('hidden');
-            screens.start.classList.remove('hidden');
-            screens.start.classList.add('flex'); 
-        }
-        
-        window.onload = typeIntro;
-
-        // ==========================================
-        // SINTETIZADOR DE MÚSICA E EFEITOS EM 8-BITS
-        // ==========================================
+        // ============================================================
+        // SINTETIZADOR DE MÚSICA E EFEITOS SONOROS 8-BITS (WEB AUDIO)
+        // ============================================================
         let audioCtx = null;
-        let isMusicPlaying = false;
+        let isMusicEnabled = false;
+        let audioUserMuted = false;
         let musicInterval = null;
-        let currentStep = 0;
-        let noiseBuffer = null;
+        let musicStep = 0;
 
-        // Tabela de frequências das notas musicais
+        // Notas musicais (Hz) para tema retrô misterioso em Ré menor
         const NOTE_FREQ = {
-            'C2': 65.41, 'D2': 73.42, 'Eb2': 77.78, 'E2': 82.41, 'F2': 87.31, 'G2': 98.00, 'Ab2': 103.83, 'A2': 110.00, 'Bb2': 116.54, 'B2': 123.47,
-            'C3': 130.81, 'D3': 146.83, 'Eb3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00, 'Ab3': 207.65, 'A3': 220.00, 'Bb3': 233.08, 'B3': 246.94,
-            'C4': 261.63, 'D4': 293.66, 'Eb4': 311.13, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'Ab4': 415.30, 'A4': 440.00, 'Bb4': 466.16, 'B4': 493.88,
-            'C5': 523.25, 'D5': 587.33, 'Eb5': 622.25, 'E5': 659.25, 'F5': 698.46, 'G5': 783.99, 'Ab5': 830.61, 'B5': 987.77, 'C6': 1046.50
+            D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00, Bb3: 233.08, C4: 261.63,
+            D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00, Bb4: 466.16, C5: 523.25,
+            D5: 587.33, E5: 659.25, F5: 698.46, A2: 110.00, Bb2: 116.54, C3: 130.81, G2: 98.00
         };
 
-        // Melodia Principal 8-Bits (64 passos - Estilo Mistério Clássico / Castlevania / Mega Man)
-        const MELODY_STEPS = [
-            // Compasso 1 (Cm)
-            'C5', null, 'G4', 'Eb4', 'C4', 'Eb4', 'G4', 'C5',
-            'D5', null, 'Eb5', null, 'D5', 'C5', 'B4', 'D5',
-            // Compasso 2 (Ab -> G)
-            'C5', null, 'Ab4', 'F4', 'C4', 'F4', 'Ab4', 'C5',
-            'B4', null, 'G4', 'D4', 'G4', 'B4', 'D5', null,
-            // Compasso 3 (Fm -> Cm)
-            'F5', null, 'C5', 'Ab4', 'F4', 'Ab4', 'C5', 'F5',
-            'Eb5', null, 'C5', 'G4', 'Eb4', 'G4', 'C5', 'Eb5',
-            // Compasso 4 (Ddim -> G7)
-            'D5', 'C5', 'B4', 'C5', 'D5', 'Eb5', 'F5', 'D5',
-            'B4', null, 'G4', null, 'C5', null, null, null
+        const MELODY_SEQ = [
+            'D4', null, 'F4', null, 'A4', null, 'G4', 'F4',
+            'E4', null, 'G4', null, 'Bb4', null, 'A4', null,
+            'D5', null, 'C5', 'Bb4', 'A4', null, 'F4', null,
+            'E4', 'F4', 'G4', 'E4', 'D4', null, null, null
         ];
 
-        // Arpejo / Harmonia Secundária 8-Bits
-        const HARMONY_STEPS = [
-            'Eb4', null, null, null, 'G3', null, 'C4', null,
-            'F4', null, 'G4', null, 'F4', 'Eb4', 'D4', null,
-            'Eb4', null, null, null, 'Ab3', null, 'C4', null,
-            'D4', null, 'B3', null, 'D4', 'G4', 'B4', null,
-            'Ab4', null, null, null, 'C4', null, 'F4', null,
-            'G4', null, null, null, 'C4', null, 'Eb4', null,
-            'F4', null, 'D4', null, 'Ab4', null, 'F4', null,
-            'G4', 'F4', 'Eb4', 'D4', 'Eb4', null, null, null
+        const ARP_SEQ = [
+            'A3', 'D4', 'F4', 'D4', 'A3', 'D4', 'F4', 'D4',
+            'G3', 'Bb3', 'E4', 'Bb3', 'A3', 'C4', 'E4', 'C4',
+            'Bb3', 'D4', 'F4', 'D4', 'A3', 'D4', 'F4', 'D4',
+            'G3', 'Bb3', 'E4', 'C4', 'A3', 'D4', 'F4', 'A3'
         ];
 
-        // Linha de Baixo Triangle 8-Bits
-        const BASS_STEPS = [
-            'C3', null, 'C2', null, 'C3', null, 'Eb3', 'D3',
-            'C3', null, 'C2', null, 'G2', null, 'B2', null,
-            'Ab2', null, 'Ab2', null, 'F2', null, 'Ab2', null,
-            'G2', null, 'G2', null, 'G2', 'A2', 'B2', 'G2',
-            'F2', null, 'F3', null, 'F2', null, 'Ab2', null,
-            'C3', null, 'G2', null, 'C3', null, 'Eb3', null,
-            'D3', null, 'A2', null, 'B2', null, 'G2', null,
-            'G2', 'G2', 'A2', 'B2', 'C3', null, 'C2', null
-        ];
-
-        // Percussão de Ruído (K = Bumbo 8-bit, S = Caixa, H = Chimbal)
-        const DRUM_STEPS = [
-            'K', 'H', 'S', 'H', 'K', 'K', 'S', 'H',
-            'K', 'H', 'S', 'H', 'K', 'S', 'K', 'S'
+        const BASS_SEQ = [
+            'D3', null, null, null, 'D3', null, 'A2', null,
+            'G2', null, null, null, 'A2', null, 'C3', null,
+            'Bb2', null, null, null, 'D3', null, 'A2', null,
+            'G2', null, 'A2', null, 'D3', null, null, null
         ];
 
         function initAudioContext() {
             if (!audioCtx) {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContextClass();
-
-                // Cria buffer de ruído branco para percussão 8-bits
-                const bufferSize = audioCtx.sampleRate * 0.2;
-                noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) {
-                    output[i] = Math.random() * 2 - 1;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
                 }
             }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+            }
+            return audioCtx;
+        }
+
+        function play8BitTone(freq, duration, type = 'square', volume = 0.06, delay = 0) {
+            try {
+                const ctxAudio = initAudioContext();
+                if (!ctxAudio || !freq) return;
+                const now = ctxAudio.currentTime + delay;
+                const osc = ctxAudio.createOscillator();
+                const gain = ctxAudio.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(volume, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                osc.connect(gain);
+                gain.connect(ctxAudio.destination);
+                osc.start(now);
+                osc.stop(now + duration + 0.01);
+            } catch (e) {
+                // Ignora bloqueios de áudio do navegador
             }
         }
 
-        function playTone(freq, type, duration, vol = 0.08, slideFreq = null) {
-            if (!audioCtx || !isMusicPlaying) return;
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, now);
-            if (slideFreq) {
-                osc.frequency.exponentialRampToValueAtTime(slideFreq, now + duration);
-            }
-
-            gain.gain.setValueAtTime(vol, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            osc.start(now);
-            osc.stop(now + duration);
-        }
-
-        function playDrum(type) {
-            if (!audioCtx || !isMusicPlaying || !noiseBuffer) return;
-            const now = audioCtx.currentTime;
-
-            if (type === 'K') {
-                // Bumbo 8-bits (queda rápida de frequência)
-                playTone(130, 'triangle', 0.09, 0.14, 35);
-            } else if (type === 'S') {
-                // Caixa 8-bits (ruído curto + pulso)
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = noiseBuffer;
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'bandpass';
-                filter.frequency.value = 1200;
-                const gain = audioCtx.createGain();
-                gain.gain.setValueAtTime(0.06, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-                noise.connect(filter);
-                filter.connect(gain);
-                gain.connect(audioCtx.destination);
+        function play8BitNoise(duration = 0.05, volume = 0.03) {
+            try {
+                const ctxAudio = initAudioContext();
+                if (!ctxAudio) return;
+                const bufferSize = Math.floor(ctxAudio.sampleRate * duration);
+                const buffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = ctxAudio.createBufferSource();
+                noise.buffer = buffer;
+                const gain = ctxAudio.createGain();
+                const now = ctxAudio.currentTime;
+                gain.gain.setValueAtTime(volume, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                noise.connect(gain);
+                gain.connect(ctxAudio.destination);
                 noise.start(now);
-                noise.stop(now + 0.09);
-            } else if (type === 'H') {
-                // Chimbal 8-bits bem suave
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = noiseBuffer;
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'highpass';
-                filter.frequency.value = 5000;
-                const gain = audioCtx.createGain();
-                gain.gain.setValueAtTime(0.02, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-                noise.connect(filter);
-                filter.connect(gain);
-                gain.connect(audioCtx.destination);
-                noise.start(now);
-                noise.stop(now + 0.03);
-            }
-        }
-
-        function stepSequencer() {
-            if (!isMusicPlaying) return;
-
-            const step64 = currentStep % 64;
-            const step16 = currentStep % 16;
-
-            const melodyNote = MELODY_STEPS[step64];
-            const harmonyNote = HARMONY_STEPS[step64];
-            const bassNote = BASS_STEPS[step64];
-            const drumHit = DRUM_STEPS[step16];
-
-            if (melodyNote && NOTE_FREQ[melodyNote]) {
-                playTone(NOTE_FREQ[melodyNote], 'square', 0.13, 0.045);
-            }
-            if (harmonyNote && NOTE_FREQ[harmonyNote]) {
-                playTone(NOTE_FREQ[harmonyNote], 'sawtooth', 0.11, 0.022);
-            }
-            if (bassNote && NOTE_FREQ[bassNote]) {
-                playTone(NOTE_FREQ[bassNote], 'triangle', 0.15, 0.09);
-            }
-            if (drumHit) {
-                playDrum(drumHit);
-            }
-
-            currentStep++;
-        }
-
-        function start8BitLoop() {
-            if (musicInterval) clearInterval(musicInterval);
-            // ~135 BPM em semicolcheias (110ms por passo)
-            musicInterval = setInterval(stepSequencer, 115);
-        }
-
-        function stop8BitLoop() {
-            if (musicInterval) {
-                clearInterval(musicInterval);
-                musicInterval = null;
-            }
+            } catch (e) {}
         }
 
         function updateAudioButtonUI() {
             const icon = document.getElementById('audio-icon');
             const label = document.getElementById('audio-label');
-            const btn = document.getElementById('btn-audio-toggle');
-            if (isMusicPlaying) {
+            if (!icon || !label) return;
+            if (isMusicEnabled) {
                 icon.innerText = '🔊';
                 label.innerText = 'Música 8-Bits: ON';
-                btn.classList.add('border-[var(--gold)]', 'text-[var(--gold)]');
             } else {
                 icon.innerText = '🔇';
                 label.innerText = 'Música 8-Bits: OFF';
-                btn.classList.remove('border-[var(--gold)]', 'text-[var(--gold)]');
             }
+        }
+
+        function start8BitLoop() {
+            if (musicInterval) clearInterval(musicInterval);
+            musicInterval = setInterval(() => {
+                if (!isMusicEnabled || !audioCtx || audioCtx.state !== 'running') return;
+                const step = musicStep % MELODY_SEQ.length;
+                const mel = MELODY_SEQ[step];
+                const arp = ARP_SEQ[step];
+                const bass = BASS_SEQ[step];
+
+                if (mel && NOTE_FREQ[mel]) play8BitTone(NOTE_FREQ[mel], 0.16, 'square', 0.045);
+                if (arp && NOTE_FREQ[arp]) play8BitTone(NOTE_FREQ[arp], 0.10, 'square', 0.018);
+                if (bass && NOTE_FREQ[bass]) play8BitTone(NOTE_FREQ[bass], 0.22, 'triangle', 0.07);
+                if (step % 4 === 2) play8BitNoise(0.035, 0.018);
+
+                musicStep++;
+            }, 185);
         }
 
         function toggle8BitAudio() {
             initAudioContext();
-            isMusicPlaying = !isMusicPlaying;
-            if (isMusicPlaying) {
+            if (isMusicEnabled) {
+                isMusicEnabled = false;
+                audioUserMuted = true;
+                if (musicInterval) {
+                    clearInterval(musicInterval);
+                    musicInterval = null;
+                }
+            } else {
+                isMusicEnabled = true;
+                audioUserMuted = false;
                 start8BitLoop();
                 play8BitSFX('select');
-            } else {
-                stop8BitLoop();
             }
             updateAudioButtonUI();
         }
 
         function ensure8BitMusicStarted() {
-            if (!audioCtx) {
-                initAudioContext();
-                isMusicPlaying = true;
+            if (audioUserMuted) return;
+            initAudioContext();
+            if (!isMusicEnabled) {
+                isMusicEnabled = true;
                 start8BitLoop();
                 updateAudioButtonUI();
             }
         }
 
-        // Efeitos Sonoros Clássicos em 8-Bits para ações do jogo
         function play8BitSFX(type) {
-            if (!audioCtx || !isMusicPlaying) return;
-            const now = audioCtx.currentTime;
-
+            if (audioUserMuted) return;
+            initAudioContext();
             if (type === 'select') {
-                playTone(523.25, 'square', 0.06, 0.06);
-                setTimeout(() => playTone(783.99, 'square', 0.08, 0.06), 55);
+                play8BitTone(523.25, 0.07, 'square', 0.05, 0);
+                play8BitTone(659.25, 0.09, 'square', 0.05, 0.06);
             } else if (type === 'correct') {
-                const notes = [523.25, 659.25, 783.99, 1046.50];
-                notes.forEach((n, idx) => {
-                    setTimeout(() => playTone(n, 'square', 0.1, 0.07), idx * 70);
-                });
+                play8BitTone(523.25, 0.09, 'square', 0.06, 0);
+                play8BitTone(659.25, 0.09, 'square', 0.06, 0.08);
+                play8BitTone(783.99, 0.18, 'square', 0.06, 0.16);
             } else if (type === 'wrong') {
-                playTone(196.00, 'sawtooth', 0.15, 0.08, 130.81);
-                setTimeout(() => playTone(146.83, 'sawtooth', 0.25, 0.08, 98.00), 140);
+                play8BitTone(220.00, 0.14, 'sawtooth', 0.06, 0);
+                play8BitTone(164.81, 0.24, 'sawtooth', 0.06, 0.12);
             } else if (type === 'ability') {
-                const arp = [392.00, 523.25, 659.25, 783.99, 1046.50, 1318.51];
-                arp.forEach((n, idx) => {
-                    setTimeout(() => playTone(n, 'square', 0.07, 0.06), idx * 45);
-                });
+                play8BitTone(440.00, 0.08, 'square', 0.06, 0);
+                play8BitTone(587.33, 0.08, 'square', 0.06, 0.07);
+                play8BitTone(880.00, 0.20, 'square', 0.06, 0.14);
             } else if (type === 'victory') {
-                const fanfare = [523.25, 523.25, 523.25, 523.25, 415.30, 466.16, 523.25, 466.16, 523.25];
-                const delays = [0, 130, 260, 390, 550, 750, 950, 1100, 1250];
-                fanfare.forEach((n, idx) => {
-                    setTimeout(() => playTone(n, 'square', 0.16, 0.08), delays[idx]);
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, idx) => {
+                    play8BitTone(f, idx === 3 ? 0.35 : 0.12, 'square', 0.07, idx * 0.11);
                 });
             }
         }
+
+        // ============================================================
+        // INTRODUÇÃO E SELEÇÃO DE PERSONAGENS
+        // ============================================================
+        const introPhrase = "O Jogo da Imitação: Um teste para descobrir se você consegue distinguir a genialidade de uma mente humana da precisão de uma Inteligência Artificial.";
+        let introTimeout;
+
+        function typeIntro() {
+            const el = document.getElementById('intro-text');
+            if (!el) return;
+            el.innerHTML = '';
+            el.classList.add('typewriter');
+            let i = 0;
+
+            function typeChar() {
+                if (screens.intro.classList.contains('hidden')) return;
+                if (i < introPhrase.length) {
+                    el.innerHTML += introPhrase.charAt(i);
+                    i++;
+                    introTimeout = setTimeout(typeChar, 35);
+                } else {
+                    el.classList.remove('typewriter');
+                    introTimeout = setTimeout(() => skipIntro(false), 2500);
+                }
+            }
+            typeChar();
+        }
+
+        function skipIntro(fromUser = true) {
+            clearTimeout(introTimeout);
+            if (fromUser) ensure8BitMusicStarted();
+            screens.intro.classList.add('hidden');
+            screens.start.classList.remove('hidden');
+            screens.start.classList.add('flex');
+            updateBackgroundMood('normal');
+        }
+
+        window.onload = function () {
+            updateBackgroundMood('normal');
+            typeIntro();
+        };
 
         function startGameSetup(n) {
             ensure8BitMusicStarted();
@@ -1283,12 +1610,13 @@
             currentPlayerChoosing = 1;
             chosenChars = [];
             availableChars = Object.keys(CHARS_DATA);
-            
+
             screens.start.classList.add('hidden');
             screens.start.classList.remove('flex');
             screens.charSelect.classList.remove('hidden');
             screens.charSelect.classList.add('flex');
-            
+
+            updateBackgroundMood('normal');
             renderCharSelection();
         }
 
@@ -1296,42 +1624,38 @@
             document.getElementById('char-select-title').innerText = `Jogador ${currentPlayerChoosing}, Escolha seu Personagem`;
             const container = document.getElementById('char-options');
             container.innerHTML = '';
-            hideCharTooltip();
-            
+
             availableChars.forEach(id => {
                 const char = CHARS_DATA[id];
-                container.innerHTML += `
-                    <div onclick="chooseCharacter('${id}')"
-                         onmouseenter="showCharTooltip('${id}', this)"
-                         onmouseleave="hideCharTooltip()"
-                         class="char-card w-56 md:w-64 flex flex-col items-center relative group">
-                        <!-- Imagem da Carta Completa (usa PNG local/carregado ou a Carta SVG ilustrada automaticamente) -->
-                        <img src="${char.img}" alt="${char.name}" class="card-full-img"
-                             onerror="this.onerror=null; this.src=CHARS_DATA['${id}'].svgFallback;">
+                const cardWrapper = document.createElement('div');
+                cardWrapper.className = 'char-card w-56 md:w-64 flex flex-col';
+                cardWrapper.setAttribute('onclick', `chooseCharacter('${id}')`);
+                cardWrapper.addEventListener('mouseenter', () => showCharTooltip(id, cardWrapper));
+                cardWrapper.addEventListener('mouseleave', hideCharTooltip);
 
-                        <!-- Tag de Sequência Necessária -->
-                        <div class="w-full bg-[#151012] border-t border-[#8c5a35] py-2 px-3 flex justify-between items-center text-xs">
-                            <span class="text-gray-300 font-semibold">${char.name}</span>
-                            <span class="text-[var(--gold)] font-bold">Seq: ${char.req}</span>
-                        </div>
+                cardWrapper.innerHTML = `
+                    <img src="${char.img}" alt="${char.name}" class="card-full-img" onerror="this.onerror=null; this.src=CHARS_DATA['${id}'].svgFallback;">
+                    <div class="p-3 bg-gradient-to-t from-[#0a0809] to-[#1a1518] border-t border-[var(--copper-dark)] text-center">
+                        <div class="text-sm font-bold uppercase tracking-wider" style="color: ${char.color};">${char.name}</div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">${char.abName} • Seq: ${char.req}</div>
                     </div>
                 `;
+                container.appendChild(cardWrapper);
             });
         }
 
-        // Exibe e posiciona dinamicamente o balão histórico/habilidade ao passar o mouse na carta
         function showCharTooltip(charId, cardEl) {
             const char = CHARS_DATA[charId];
             const tooltip = document.getElementById('char-tooltip-balloon');
             const arrow = document.getElementById('tooltip-arrow');
-            if (!char || !tooltip) return;
+            if (!char || !tooltip || !cardEl) return;
 
             document.getElementById('tooltip-char-name').innerText = char.name;
             document.getElementById('tooltip-char-name').style.color = char.color;
             document.getElementById('tooltip-char-epithet').innerText = char.title;
             document.getElementById('tooltip-char-history').innerText = char.history;
-            document.getElementById('tooltip-ability-title').innerText = `⚙ Mecânica: ${char.abName}`;
-            document.getElementById('tooltip-ability-req').innerText = `Seq: ${char.req}`;
+            document.getElementById('tooltip-ability-title').innerText = `⚙ ${char.abName}`;
+            document.getElementById('tooltip-ability-req').innerText = `Requer Seq: ${char.req}`;
             document.getElementById('tooltip-ability-summary').innerHTML = char.abSummary;
 
             tooltip.classList.remove('hidden');
@@ -1344,33 +1668,32 @@
             const vh = window.innerHeight;
             const margin = 16;
 
-            let left, top;
+            let tooltipLeft, tooltipTop;
 
             // Tenta posicionar à direita ou à esquerda da carta sem cortar na tela
             if (rect.right + ttWidth + 24 <= vw) {
-                left = rect.right + 16;
-                top = rect.top + (rect.height / 2) - (ttHeight / 2);
-                top = Math.max(margin, Math.min(vh - ttHeight - margin, top));
+                tooltipLeft = rect.right + 16;
+                tooltipTop = rect.top + (rect.height / 2) - (ttHeight / 2);
+                tooltipTop = Math.max(margin, Math.min(vh - ttHeight - margin, tooltipTop));
                 arrow.classList.add('arrow-left');
-                const arrowTop = Math.max(24, Math.min(ttHeight - 36, (rect.top + rect.height / 2) - top - 7));
+                const arrowTop = Math.max(24, Math.min(ttHeight - 36, (rect.top + rect.height / 2) - tooltipTop - 7));
                 arrow.style.top = `${arrowTop}px`;
             } else if (rect.left - ttWidth - 24 >= 0) {
-                left = rect.left - ttWidth - 16;
-                top = rect.top + (rect.height / 2) - (ttHeight / 2);
-                top = Math.max(margin, Math.min(vh - ttHeight - margin, top));
+                tooltipLeft = rect.left - ttWidth - 16;
+                tooltipTop = rect.top + (rect.height / 2) - (ttHeight / 2);
+                tooltipTop = Math.max(margin, Math.min(vh - ttHeight - margin, tooltipTop));
                 arrow.classList.add('arrow-right');
-                const arrowTop = Math.max(24, Math.min(ttHeight - 36, (rect.top + rect.height / 2) - top - 7));
+                const arrowTop = Math.max(24, Math.min(ttHeight - 36, (rect.top + rect.height / 2) - tooltipTop - 7));
                 arrow.style.top = `${arrowTop}px`;
             } else {
-                // Fallback para telas menores: centraliza horizontalmente abaixo ou acima
-                left = Math.max(margin, (vw - ttWidth) / 2);
-                top = (rect.bottom + ttHeight + margin <= vh)
+                tooltipLeft = Math.max(margin, Math.min(vw - ttWidth - margin, rect.left + (rect.width / 2) - (ttWidth / 2)));
+                tooltipTop = rect.bottom + 12 + ttHeight <= vh
                     ? rect.bottom + 12
                     : Math.max(margin, rect.top - ttHeight - 12);
             }
 
-            tooltip.style.left = `${left}px`;
-            tooltip.style.top = `${top}px`;
+            tooltip.style.left = `${tooltipLeft}px`;
+            tooltip.style.top = `${tooltipTop}px`;
 
             requestAnimationFrame(() => {
                 tooltip.classList.add('visible');
@@ -1768,6 +2091,7 @@
             document.getElementById('streak-ai').innerText = streakAI;
             
             checkAbilities();
+            updateBackgroundMood();
         }
 
         function showFeedback(isCorrect, realSource, extraMsg) {
@@ -1834,6 +2158,7 @@
                     title.style.textShadow = "0 0 20px var(--gold)";
                     desc.innerText = `${winnerNames} atingiu os 10 pontos, dominando a lógica fria da Máquina!`;
                     aiIntensity = 0;
+                    updateBackgroundMood('humans');
                 } else if (scoreAI >= 10) {
                     play8BitSFX('wrong');
                     title.innerText = "A Máquina Venceu";
@@ -1841,6 +2166,7 @@
                     title.style.textShadow = "0 0 20px red";
                     desc.innerText = "A Inteligência Artificial alcançou 10 pontos de falhas humanas. O código dominou a realidade.";
                     aiIntensity = 1;
+                    updateBackgroundMood('ai');
                 }
             } else {
                 activePlayerIndex = (activePlayerIndex + 1) % numPlayers;
